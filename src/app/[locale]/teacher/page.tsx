@@ -294,7 +294,12 @@ export default function TeacherDashboard() {
 
   // ── Derived state ─────────────────────────────────────────────────────────
   const isAttendanceComplete = children.length > 0 && children.every(e => attendanceData[e.id] !== undefined)
-  const isAllProcessed       = children.length > 0 && children.every(e => attendanceData[e.id] !== undefined && !!childResumes[e.id])
+  const isAllProcessed       = children.length > 0 && children.every(e => {
+    const att = attendanceData[e.id]
+    if (att === undefined) return false
+    if (att === "Absent") return true   // absent = pas de résumé requis
+    return !!childResumes[e.id]
+  })
   const hasPresenceForCurrent = !!(currentChild && attendanceData[currentChild.id] !== undefined)
   const hasResumeForCurrent   = !!(currentChild && childResumes[currentChild.id])
   const progressPercent       = children.length > 0 ? ((currentChildIndex + 1) / children.length) * 100 : 0
@@ -375,7 +380,7 @@ export default function TeacherDashboard() {
                   {`${child.prenom ?? ""} ${child.nom ?? ""}`.trim()}
                 </p>
                 <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${presenceBadge}`}>{presenceLabel}</span>
-                {hasResume && (
+                {presence !== "Absent" && hasResume && (
                   <span className="text-[10px] px-2 py-0.5 rounded-full border bg-sky-50 text-sky-700 border-sky-200 font-medium">Résumé ✓</span>
                 )}
               </div>
@@ -481,9 +486,13 @@ export default function TeacherDashboard() {
                   </Button>
                 </div>
 
-                {/* FIX: granular status badge with 3 distinct states */}
+                {/* Status badge */}
                 <div className="text-xs">
-                  {attendanceData[currentChild.id] !== undefined && childResumes[currentChild.id] ? (
+                  {attendanceData[currentChild.id] === "Absent" ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full border bg-red-50 text-red-600 border-red-200">
+                      Absent — pas de résumé requis
+                    </span>
+                  ) : attendanceData[currentChild.id] !== undefined && childResumes[currentChild.id] ? (
                     <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-300">
                       ✓ Présence & résumé faits
                     </span>
@@ -512,12 +521,23 @@ export default function TeacherDashboard() {
           <CardContent className="pt-4 flex flex-col gap-4">
             <div className="flex items-center justify-between mb-1">
               <h2 className="text-base md:text-lg font-bold text-gray-900">{t("daySummaryTitle")}</h2>
-              {hasResumeForCurrent && (
+              {hasResumeForCurrent && attendanceData[currentChild?.id ?? ""] !== "Absent" && (
                 <span className="text-xs bg-sky-50 text-sky-700 border border-sky-200 px-2 py-0.5 rounded-full font-medium">
                   Modifiable
                 </span>
               )}
             </div>
+
+            {/* Absent — no resume */}
+            {currentChild && attendanceData[currentChild.id] === "Absent" ? (
+              <div className="flex flex-col items-center justify-center py-10 gap-3 text-center">
+                <span className="text-4xl">🏠</span>
+                <p className="text-sm font-semibold text-gray-700">
+                  {currentChild.prenom} est absent(e) aujourd'hui
+                </p>
+                <p className="text-xs text-gray-400">Le résumé journalier ne s'applique pas aux enfants absents.</p>
+              </div>
+            ) : (<>
 
             {/* 4 metric cards — each reads from per-child form */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -620,6 +640,7 @@ export default function TeacherDashboard() {
                 {savingResume ? "Enregistrement…" : hasResumeForCurrent ? "Mettre à jour" : "Valider le résumé"}
               </Button>
             </div>
+            </>)}
           </CardContent>
         </Card>
       </div>
