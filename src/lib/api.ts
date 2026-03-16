@@ -191,6 +191,17 @@ class ApiClient {
     return this.client.delete(`/admin/users/${id}`);
   }
 
+  // ---- ÉTABLISSEMENT ----
+  getEtablissement() {
+    return this.client.get('/admin/users/etablissement');
+  }
+  updateEtablissement(data: {
+    nom?: string; adresse?: string; telephone?: string; email?: string;
+    siteWeb?: string; description?: string; horaires?: string; capacite?: number;
+  }) {
+    return this.client.put('/admin/users/etablissement', data);
+  }
+
   // ---- CLASSES (Admin) ----
   listClasses() {
     return this.client.get('/admin/classes');
@@ -433,8 +444,8 @@ class ApiClient {
   }
 
   // Admin Inscriptions (protected)
-  listAdminInscriptions() {
-    return this.client.get('/admin/inscriptions');
+  listAdminInscriptions(params?: { statut?: string; q?: string; page?: number; pageSize?: number }) {
+    return this.client.get('/admin/inscriptions', { params });
   }
 
   getAdminInscription(id: string) {

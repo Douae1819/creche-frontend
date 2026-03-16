@@ -35,6 +35,7 @@ export default function EventsPage({ params }: { params: Promise<{ locale: Local
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showPast, setShowPast] = useState(false);
 
   const [formData, setFormData] = useState({
     titre: "",
@@ -335,52 +336,90 @@ export default function EventsPage({ params }: { params: Promise<{ locale: Local
             </Card>
           )}
 
-          <div className="grid gap-4">
-            {events.length === 0 ? (
-              <Card className="p-12 text-center border-dashed">
-                <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-3 opacity-50" />
-                <p className="text-muted-foreground">
-                  Aucun événement créé. Commencez par ajouter un événement.
-                </p>
-              </Card>
-            ) : (
-              events.map((ev) => (
-                <Card
-                  key={ev.id}
-                  className="p-6 border-2 border-secondary/30 hover:border-secondary/60 transition-colors bg-gradient-to-r from-white to-secondary/5"
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <div className="flex items-center gap-3">
-                        <h3 className="text-lg font-bold text-foreground">{ev.titre}</h3>
-                        <Badge className="bg-secondary text-secondary-foreground font-semibold">
-                          {ev.classeId
-                            ? classes.find((c) => c.id === ev.classeId)?.nom ?? "Classe"
-                            : "Général"}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {formatDateTime(ev.startAt)} → {formatDateTime(ev.endAt)}
-                      </p>
-                      {ev.description && (
-                        <p className="text-sm text-foreground mt-2">{ev.description}</p>
-                      )}
+          {/* ── Filtered event lists ── */}
+          {(() => {
+            const now = new Date();
+            const future = events
+              .filter(ev => new Date(ev.endAt) >= now)
+              .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
+            const past = events
+              .filter(ev => new Date(ev.endAt) < now)
+              .sort((a, b) => new Date(b.startAt).getTime() - new Date(a.startAt).getTime());
+
+            const EventCard = ({ ev, isPast }: { ev: EventItem; isPast: boolean }) => (
+              <Card
+                key={ev.id}
+                className={`p-5 transition-colors ${isPast ? "opacity-60 border border-border bg-muted/30" : "border-2 border-secondary/30 hover:border-secondary/60 bg-gradient-to-r from-white to-secondary/5"}`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
+                      <h3 className="text-base font-bold text-foreground">{ev.titre}</h3>
+                      <Badge className={isPast ? "bg-muted text-muted-foreground" : "bg-secondary text-secondary-foreground font-semibold"}>
+                        {ev.classeId ? classes.find(c => c.id === ev.classeId)?.nom ?? "Classe" : "Général"}
+                      </Badge>
+                      {isPast && <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200">Passé</span>}
                     </div>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="gap-1 text-destructive hover:bg-destructive/10"
-                        onClick={() => handleDelete(ev.id)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {formatDateTime(ev.startAt)} → {formatDateTime(ev.endAt)}
+                    </p>
+                    {ev.description && (
+                      <p className="text-sm text-foreground mt-1.5">{ev.description}</p>
+                    )}
                   </div>
-                </Card>
-              ))
-            )}
-          </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1 text-destructive hover:bg-destructive/10 flex-shrink-0"
+                    onClick={() => handleDelete(ev.id)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </Card>
+            );
+
+            return (
+              <div className="space-y-6">
+                {/* À venir */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-sm font-semibold text-foreground">À venir</h2>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">{future.length}</span>
+                  </div>
+                  {future.length === 0 ? (
+                    <Card className="p-8 text-center border-dashed">
+                      <Calendar className="w-10 h-10 text-muted-foreground mx-auto mb-2 opacity-40" />
+                      <p className="text-sm text-muted-foreground">Aucun événement à venir.</p>
+                    </Card>
+                  ) : (
+                    <div className="grid gap-3">
+                      {future.map(ev => <EventCard key={ev.id} ev={ev} isPast={false} />)}
+                    </div>
+                  )}
+                </div>
+
+                {/* Passés — collapsible */}
+                {past.length > 0 && (
+                  <div className="space-y-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowPast(v => !v)}
+                      className="flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <span>{showPast ? "▾" : "▸"} Événements passés</span>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">{past.length}</span>
+                    </button>
+                    {showPast && (
+                      <div className="grid gap-3">
+                        {past.map(ev => <EventCard key={ev.id} ev={ev} isPast={true} />)}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       </div>
     </div>

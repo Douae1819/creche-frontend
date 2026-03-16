@@ -94,6 +94,10 @@ export default function MenusPage({ params }: { params: Promise<{ locale: Locale
   const [weekSaving, setWeekSaving] = useState(false);
   const [weekErr,  setWeekErr]    = useState<string | null>(null);
 
+  // Confirm delete modal
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
   // ── fetch ──────────────────────────────────────────────────────────────────
   const fetchMenus = async () => {
     try {
@@ -174,9 +178,15 @@ export default function MenusPage({ params }: { params: Promise<{ locale: Locale
   };
 
   // ── publish / delete ───────────────────────────────────────────────────────
-  const handleDeleteWeek = async () => {
+  const confirmAndDeleteWeek = () => {
     const daysWithMenus = weekDates.filter(d => allMenus[d]?.id);
     if (!daysWithMenus.length) return;
+    setConfirmDelete(true);
+  };
+
+  const handleDeleteWeek = async () => {
+    const daysWithMenus = weekDates.filter(d => allMenus[d]?.id);
+    setDeleting(true);
     try {
       for (const date of daysWithMenus) {
         const menu = allMenus[date];
@@ -189,8 +199,11 @@ export default function MenusPage({ params }: { params: Promise<{ locale: Locale
         daysWithMenus.forEach(d => delete n[d]);
         return n;
       });
+      setConfirmDelete(false);
     } catch {
       alert("Erreur lors de la suppression de la semaine.");
+    } finally {
+      setDeleting(false);
     }
   };
   const saveWeekModal = async () => {
@@ -301,7 +314,7 @@ export default function MenusPage({ params }: { params: Promise<{ locale: Locale
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleDeleteWeek}
+                onClick={confirmAndDeleteWeek}
                 disabled={weekDates.every(d => !allMenus[d]?.id)}
                 className="text-destructive border-destructive/40 hover:bg-destructive/10 disabled:opacity-40"
               >
@@ -506,6 +519,49 @@ export default function MenusPage({ params }: { params: Promise<{ locale: Locale
               <Button variant="outline" onClick={closeModal} disabled={saving}>Annuler</Button>
               <Button onClick={saveModal} disabled={saving} className="bg-primary text-primary-foreground">
                 {saving ? "Enregistrement…" : "Enregistrer"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Confirm Delete Modal ──────────────────────────────────────────────── */}
+      {confirmDelete && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+        >
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="px-6 pt-6 pb-4">
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center">
+                  <Trash2 className="w-5 h-5 text-destructive" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-foreground">Supprimer la semaine ?</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Vous allez supprimer tous les menus de la semaine du{" "}
+                    <span className="font-medium text-foreground">{formatWeekLabel(monday)}</span>.
+                    {weekDates.some(d => allMenus[d]?.statut === "Publie") && (
+                      <span className="block mt-1.5 text-amber-700 font-medium">
+                        ⚠️ Certains menus sont déjà publiés et visibles aux parents.
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-2">Cette action est irréversible.</p>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border bg-muted/20">
+              <Button variant="outline" onClick={() => setConfirmDelete(false)} disabled={deleting}>
+                Annuler
+              </Button>
+              <Button
+                onClick={handleDeleteWeek}
+                disabled={deleting}
+                className="bg-destructive hover:bg-destructive/90 text-white"
+              >
+                {deleting ? "Suppression…" : "Oui, supprimer"}
               </Button>
             </div>
           </div>

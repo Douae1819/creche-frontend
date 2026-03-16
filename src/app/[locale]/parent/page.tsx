@@ -13,6 +13,13 @@ import { Home, CheckCircle2, Baby, Utensils, CalendarDays, ChevronLeft, ChevronR
 
 type Tab = "home" | "presence" | "child" | "menu" | "events"
 
+const LIEN_LABELS: Record<string, string> = {
+  Mere: "Mère", Pere: "Père", Tuteur: "Tuteur/Tutrice",
+  GrandMere: "Grand-mère", GrandPere: "Grand-père", Autre: "Autre",
+}
+const formatLien = (lien?: string | null): string =>
+  (lien && LIEN_LABELS[lien]) ? LIEN_LABELS[lien] : (lien ?? "—")
+
 export default function ParentDashboard({ params }: { params: Promise<{ locale: Locale }> }) {
   const resolvedParams = use(params)
   const t = useTranslations("parent")
@@ -163,15 +170,23 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
           if (delegations.length > 0) setAuthorizedPersons(delegations.map((d: any) => ({ id: d.id, name: d.nom, role: d.relation ?? null, phone: d.telephone ?? null })))
           else if (Array.isArray(profile?.tuteurs)) setAuthorizedPersons(profile.tuteurs.map((tt: any) => ({ id: tt.id, name: `${tt.prenom ?? ""} ${tt.nom ?? ""}`.trim() || tt.email || "", role: tt.lien ?? null, phone: tt.telephone ?? null })))
           try {
-            const eventsRes = await apiClient.listParentEvents({ page: 1, pageSize: 10 })
+            const eventsRes = await apiClient.listParentEvents({ page: 1, pageSize: 50 })
             const payload = eventsRes.data
             const rawEvents: any[] = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload?.items) ? payload.items : Array.isArray(payload) ? payload : []
-            if (!cancelled) setUpcomingEvents(rawEvents.map((ev: any) => {
-              const start = ev.startAt ? new Date(ev.startAt) : null; const end = ev.endAt ? new Date(ev.endAt) : null
-              let timeLabel: string | null = null
-              if (start) { const st = start.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }); timeLabel = end ? `${st} – ${end.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}` : st }
-              return { id: ev.id ?? String(Math.random()), date: start ? start.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" }).toUpperCase() : "", title: ev.titre ?? ev.title ?? "", time: timeLabel, description: ev.description ?? null }
-            }))
+            const nowTs = Date.now()
+            if (!cancelled) setUpcomingEvents(
+              rawEvents
+                // filtre : ne garder que les événements non encore terminés
+                .filter((ev: any) => ev.endAt ? new Date(ev.endAt).getTime() >= nowTs : ev.startAt ? new Date(ev.startAt).getTime() >= nowTs : true)
+                .sort((a: { startAt?: string }, b: { startAt?: string }) => new Date(a.startAt ?? 0).getTime() - new Date(b.startAt ?? 0).getTime())
+                .map((ev: { id?: string; startAt?: string; endAt?: string; titre?: string; title?: string; description?: string }) => {
+                  const start = ev.startAt ? new Date(ev.startAt) : null
+                  const end   = ev.endAt   ? new Date(ev.endAt)   : null
+                  let timeLabel: string | null = null
+                  if (start) { const st = start.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }); timeLabel = end ? `${st} – ${end.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}` : st }
+                  return { id: ev.id ?? String(Math.random()), date: start ? start.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" }).toUpperCase() : "", title: ev.titre ?? ev.title ?? "", time: timeLabel, description: ev.description ?? null }
+                })
+            )
           } catch {}
         }
       } finally { if (!cancelled) setProfileLoading(false) }
@@ -738,7 +753,7 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="font-semibold text-sm text-gray-900">{person.name}</p>
-                    {person.role && <p className="text-xs text-gray-600 mt-0.5">{person.role}</p>}
+                    {person.role && <p className="text-xs text-gray-600 mt-0.5">{formatLien(person.role)}</p>}
                     {person.phone && <p className="text-xs mt-0.5" style={{ color: "#FF6F61" }}>📞 {person.phone}</p>}
                   </div>
                   <div className="flex gap-1.5 flex-shrink-0">
@@ -804,9 +819,9 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
 
   // ─── Tab: Menu ────────────────────────────────────────────────────────────
   const MENU_ROWS = [
-    { icon: "🥛", label: "Collation matin", key: "entree" as const },
-    { icon: "🍗", label: "Repas",           key: "plat"   as const },
-    { icon: "🍎", label: "Goûter",          key: "dessert" as const },
+    { icon: "🥛", label: "Collation",  hint: "vers 9h30",  key: "entree"  as const },
+    { icon: "🍽️", label: "Déjeuner",   hint: "vers 12h00", key: "plat"    as const },
+    { icon: "🍪", label: "Goûter",     hint: "vers 16h00", key: "dessert" as const },
   ]
 
   const MenuTab = () => {
@@ -842,7 +857,10 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
                   <div key={row.key} className="flex items-start gap-3 py-2.5 border-t first:border-0 first:pt-0" style={{ borderColor: "rgba(174,223,247,0.5)" }}>
                     <span className="text-xl flex-shrink-0 leading-none mt-0.5">{row.icon}</span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">{row.label}</p>
+                      <div className="flex items-baseline gap-1.5">
+                        <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">{row.label}</p>
+                        <p className="text-[9px] text-gray-400">{row.hint}</p>
+                      </div>
                       <p className="text-sm font-semibold text-gray-900 leading-snug break-words">{todayMenu[row.key]}</p>
                     </div>
                   </div>

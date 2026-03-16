@@ -11,6 +11,13 @@ import type { Locale } from "@/lib/i18n/config"
 
 type ClasseItem = { id: string; nom: string; niveau?: string | null }
 
+const LIEN_LABELS: Record<string, string> = {
+  Mere: "Mère", Pere: "Père", Tuteur: "Tuteur/Tutrice",
+  GrandMere: "Grand-mère", GrandPere: "Grand-père", Autre: "Autre",
+}
+const formatLien = (lien?: string | null): string =>
+  (lien && LIEN_LABELS[lien]) ? LIEN_LABELS[lien] : (lien ?? "—")
+
 interface AdminInscriptionDetailProps {
   params: Promise<{ locale: Locale; id: string }>
 }
@@ -204,7 +211,7 @@ export default function AdminInscriptionDetailPage({ params }: AdminInscriptionD
                         {`${p.prenom ?? ""} ${p.nom ?? ""}`.trim() || "—"}
                       </p>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs text-muted-foreground">{p.lien ?? "—"}</span>
+                        <span className="text-xs text-muted-foreground">{formatLien(p.lien)}</span>
                         {p.principal && (
                           <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
                             Responsable principal

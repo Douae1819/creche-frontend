@@ -21,6 +21,7 @@ import {
   Menu,
   X,
   ScrollText,
+  Building2,
 } from "lucide-react";
 
 // Lit un claim du JWT depuis les cookies (côté client seulement)
@@ -110,6 +111,11 @@ export function SidebarNew({ currentLocale }: { currentLocale: string }) {
       labelKey: "reglement",
       href: "/admin/reglement-interieur",
       icon: <ScrollText className="w-5 h-5" />,
+    },
+    {
+      labelKey: "etablissement",
+      href: "/admin/etablissement",
+      icon: <Building2 className="w-5 h-5" />,
     },
     {
       labelKey: "profile",
