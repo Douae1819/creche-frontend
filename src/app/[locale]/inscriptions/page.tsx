@@ -17,6 +17,7 @@ export default function InscriptionsPage() {
   const [currentStep, setCurrentStep] = useState(1)
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [showStepErrors, setShowStepErrors] = useState(false)
   const pathname = usePathname()
   const [classes, setClasses] = useState<{ id: string; nom: string; complet?: boolean; nbEnfants?: number; capacite?: number }[]>([])
   const [classesError, setClassesError] = useState<string | null>(null)
@@ -101,50 +102,56 @@ export default function InscriptionsPage() {
     return () => { cancelled = true }
   }, [])
 
+  const validateStep1 = () => {
+    const NAME_RE = /^[\u00C0-\u017Ea-zA-Z' -]+$/
+    if (!formData.childFirstName.trim()) return "Le prénom de l'enfant est obligatoire."
+    if (!NAME_RE.test(formData.childFirstName.trim())) return "Prénom invalide — lettres et espaces uniquement."
+    if (!formData.childLastName.trim()) return "Le nom de l'enfant est obligatoire."
+    if (!NAME_RE.test(formData.childLastName.trim())) return "Nom invalide — lettres et espaces uniquement."
+    if (!formData.dateOfBirth) return "La date de naissance est obligatoire."
+    const ageYears = (Date.now() - new Date(formData.dateOfBirth).getTime()) / (1000 * 60 * 60 * 24 * 365.25)
+    if (ageYears < 0.5) return "L'enfant doit avoir au moins 6 mois."
+    if (ageYears > 7) return "Âge trop élevé pour une inscription (max 6 ans)."
+    if (!formData.classeIdSouhaitee) return "Veuillez sélectionner une classe souhaitée."
+    return null
+  }
+
+  const validateStep2 = () => {
+    if (!formData.motherEmail.trim() && !formData.fatherEmail.trim())
+      return "L'e-mail d'au moins un parent est obligatoire."
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+    if (formData.motherEmail && !EMAIL_RE.test(formData.motherEmail))
+      return "L'e-mail de la mère est invalide."
+    if (formData.fatherEmail && !EMAIL_RE.test(formData.fatherEmail))
+      return "L'e-mail du père est invalide."
+    const PHONE_RE = /^(0[5-7]\d{8}|\+212[5-7]\d{8}|00212[5-7]\d{8})$/
+    if (formData.motherPhone && !PHONE_RE.test(formData.motherPhone))
+      return "Téléphone de la mère invalide (ex : 0612345678)."
+    if (formData.fatherPhone && !PHONE_RE.test(formData.fatherPhone))
+      return "Téléphone du père invalide (ex : 0612345678)."
+    if (!formData.declarationHonneur)
+      return "La déclaration sur l'honneur est obligatoire."
+    return null
+  }
+
   const handleNext = () => {
     setSubmitError(null)
+    setShowStepErrors(false)
 
     if (currentStep === 1) {
-      if (!formData.childFirstName.trim()) {
-        setSubmitError("Le prénom de l'enfant est obligatoire.")
-        return
-      }
-      if (!formData.childLastName.trim()) {
-        setSubmitError("Le nom de l'enfant est obligatoire.")
-        return
-      }
-      if (!formData.dateOfBirth) {
-        setSubmitError("La date de naissance est obligatoire.")
-        return
-      }
-      if (!formData.classeIdSouhaitee) {
-        setSubmitError("Veuillez sélectionner une classe souhaitée.")
-        return
-      }
+      const err = validateStep1()
+      if (err) { setShowStepErrors(true); return }
     }
-
     if (currentStep === 2) {
-      const hasMotherInfo = formData.motherFirstName.trim() || formData.motherEmail.trim() || formData.motherPhone.trim()
-      const hasFatherInfo = formData.fatherFirstName.trim() || formData.fatherEmail.trim() || formData.fatherPhone.trim()
-      if (!hasMotherInfo && !hasFatherInfo) {
-        setSubmitError("Veuillez renseigner les informations d'au moins un parent.")
-        return
-      }
-      if (!formData.motherEmail.trim() && !formData.fatherEmail.trim()) {
-        setSubmitError("L'email d'au moins un parent est obligatoire.")
-        return
-      }
-      if (!formData.declarationHonneur) {
-        setSubmitError("La déclaration sur l'honneur est obligatoire.")
-        return
-      }
+      const err = validateStep2()
+      if (err) { setShowStepErrors(true); return }
     }
 
     if (currentStep < 5) setCurrentStep(currentStep + 1)
   }
 
   const handlePrevious = () => {
-    if (currentStep > 1) setCurrentStep(currentStep - 1)
+    if (currentStep > 1) { setCurrentStep(currentStep - 1); setShowStepErrors(false); setSubmitError(null) }
   }
 
   const handleSubmit = async () => {
@@ -243,13 +250,29 @@ export default function InscriptionsPage() {
       setIsSubmitted(true)
     } catch (error: any) {
       console.error("[Inscriptions] Error submitting inscription", error)
-      const apiMessage = error?.response?.data?.message
-      if (Array.isArray(apiMessage)) {
-        setSubmitError(apiMessage.join(" "))
-      } else if (typeof apiMessage === "string") {
-        setSubmitError(apiMessage)
+      const status = error?.response?.status
+      const raw = error?.response?.data?.message
+
+      if (status === 413 || (typeof raw === "string" && raw.toLowerCase().includes("too large"))) {
+        setSubmitError("La photo de l'enfant est trop volumineuse. Choisissez une image plus petite ou supprimez la photo.")
+      } else if (status === 409 || (typeof raw === "string" && raw.toLowerCase().includes("already exist"))) {
+        setSubmitError("Un compte avec cet e-mail existe déjà. Contactez l'établissement si vous avez déjà une inscription.")
+      } else if (Array.isArray(raw)) {
+        // Translate class-validator messages
+        const friendly = raw.map((m: string) => {
+          if (m.includes("should not exist")) return null
+          if (m.includes("must be an email")) return "Adresse e-mail invalide."
+          if (m.includes("must be a valid ISO 8601")) return "Date de naissance invalide."
+          if (m.includes("must be a string")) return "Un champ texte est manquant ou invalide."
+          return m
+        }).filter(Boolean)
+        setSubmitError(friendly.length > 0 ? friendly.join(" ") : "Veuillez vérifier les informations saisies.")
+      } else if (typeof raw === "string") {
+        setSubmitError(raw)
+      } else if (!navigator.onLine) {
+        setSubmitError("Pas de connexion internet. Vérifiez votre réseau et réessayez.")
       } else {
-        setSubmitError("Une erreur est survenue. Veuillez vérifier les informations et réessayer.")
+        setSubmitError("Envoi impossible pour le moment. Veuillez réessayer dans quelques instants.")
       }
     }
   }
@@ -301,10 +324,10 @@ export default function InscriptionsPage() {
           )}
 
           {currentStep === 1 && (
-            <Step1ChildInfo formData={formData} updateFormData={updateFormData} classes={classes} />
+            <Step1ChildInfo formData={formData} updateFormData={updateFormData} classes={classes} showErrors={showStepErrors} />
           )}
           {currentStep === 2 && (
-            <Step2ParentInfo formData={formData} updateFormData={updateFormData} />
+            <Step2ParentInfo formData={formData} updateFormData={updateFormData} showErrors={showStepErrors} />
           )}
           {currentStep === 3 && (
             <Step3AuthorizedPersons formData={formData} updateFormData={updateFormData} />
