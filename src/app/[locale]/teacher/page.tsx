@@ -449,18 +449,18 @@ export default function TeacherDashboard() {
         <Card className="border border-gray-200 shadow-sm rounded-2xl lg:col-span-1">
           <CardContent className="pt-4 flex flex-col gap-4">
             {/* Avatar + name */}
-            <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-full overflow-hidden bg-sky-500 text-white flex items-center justify-center text-xl font-bold flex-shrink-0">
+            <div className="flex flex-col items-center gap-2 pb-2">
+              <div className="h-24 w-24 rounded-full overflow-hidden bg-sky-500 text-white flex items-center justify-center text-3xl font-bold flex-shrink-0 border-4 border-sky-100 shadow-sm">
                 {(currentChild as any)?.photoUrl
-                  ? <img src={(currentChild as any).photoUrl} alt="" className="w-full h-full object-cover" />
-                  : currentChild?.prenom?.[0] ?? "A"
+                  ? <img src={(currentChild as any).photoUrl} alt={currentChild?.prenom ?? ""} className="w-full h-full object-cover" />
+                  : currentChild?.prenom?.[0]?.toUpperCase() ?? "?"
                 }
               </div>
-              <div>
+              <div className="text-center">
                 <h2 className="text-lg font-bold text-gray-900">
                   {`${currentChild?.prenom ?? ""} ${currentChild?.nom ?? ""}`.trim()}
                 </h2>
-                <p className="text-xs text-gray-600 mt-0.5">{teacherClass.nom}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{teacherClass.nom}</p>
               </div>
             </div>
 
