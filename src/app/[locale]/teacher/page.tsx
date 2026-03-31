@@ -1,6 +1,19 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useParams } from "next/navigation"
+import Cookies from "js-cookie"
+
+/** Lit un claim du JWT stocké dans le cookie */
+function readJwtUserId(): string {
+  try {
+    const token = Cookies.get("token") || Cookies.get("auth_token")
+    if (!token) return ""
+    const base64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")
+    const pad = base64.length % 4 ? "=".repeat(4 - (base64.length % 4)) : ""
+    return String(JSON.parse(atob(base64 + pad))["userId"] ?? "")
+  } catch { return "" }
+}
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -51,6 +64,8 @@ const fromParticipationEnum = (v?: string): ResumeForm["participation"] => v ===
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function TeacherDashboard() {
   const t = useTranslations("teacher.dashboard")
+  const params = useParams()
+  const locale = (params?.locale as string) ?? "fr"
 
   const [teacherClass,  setTeacherClass]  = useState<Classe | null>(null)
   const [teacherName,   setTeacherName]   = useState<string>("")
@@ -102,10 +117,25 @@ export default function TeacherDashboard() {
         const cls: Classe = classes[0]
         if (!cancelled) {
           setTeacherClass({ id: cls.id, nom: cls.nom })
-          const enseignants = (cls as any).enseignants ?? []
-          if (enseignants.length > 0) {
-            const u = enseignants[0]?.enseignant?.utilisateur
-            if (u) setTeacherName(u.prenom ?? u.nom ?? u.email ?? "")
+          // Identifier l'enseignant connecté via son userId dans le JWT
+          const myUserId = readJwtUserId()
+          const enseignants: any[] = (cls as any).enseignants ?? []
+          // Chercher d'abord l'enseignant qui correspond au compte connecté
+          const myEnseignant = enseignants.find(
+            (ec: any) => ec.enseignant?.utilisateur?.id === myUserId
+          )
+          const u = myEnseignant?.enseignant?.utilisateur
+          if (u) {
+            setTeacherName(u.prenom ?? u.nom ?? u.email ?? "")
+          } else if (enseignants.length > 0) {
+            // Fallback : utiliser l'email du JWT si le nom n'est pas trouvable
+            const token = Cookies.get("token") || Cookies.get("auth_token")
+            try {
+              const base64 = (token ?? "").split(".")[1].replace(/-/g, "+").replace(/_/g, "/")
+              const pad = base64.length % 4 ? "=".repeat(4 - (base64.length % 4)) : ""
+              const email = String(JSON.parse(atob(base64 + pad))["email"] ?? "")
+              setTeacherName(email)
+            } catch { /* ignore */ }
           }
         }
 
@@ -333,7 +363,6 @@ export default function TeacherDashboard() {
             <Button variant="outline" size="sm" onClick={() => { setViewMode("individual"); setSaveError(null) }} className="text-xs">
               Vue individuelle
             </Button>
-            <Link href="/"><Button variant="outline" size="sm" className="text-xs">← Retour</Button></Link>
           </div>
         </div>
 
@@ -390,7 +419,7 @@ export default function TeacherDashboard() {
 
         {canNavigateToSummary && (
           <div className="flex justify-end">
-            <Link href="/teacher/summary">
+            <Link href={`/${locale}/teacher/summary`}>
               <Button className="bg-sky-500 hover:bg-sky-600 text-white">{t("summaryCta")} →</Button>
             </Link>
           </div>
@@ -421,11 +450,13 @@ export default function TeacherDashboard() {
             <LayoutGrid className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Vue classe</span>
           </Button>
-          <Link href="/">
-            <Button variant="outline" className="rounded-lg bg-transparent border border-gray-300 font-medium text-xs md:text-sm">
-              ← Retour
-            </Button>
-          </Link>
+          <Button
+            variant="outline"
+            className="rounded-lg bg-transparent border border-gray-300 font-medium text-xs md:text-sm"
+            onClick={() => setViewMode("overview")}
+          >
+            ← Retour
+          </Button>
         </div>
       </div>
 
@@ -665,7 +696,7 @@ export default function TeacherDashboard() {
         </div>
 
         {canNavigateToSummary ? (
-          <Link href="/teacher/summary">
+          <Link href={`/${locale}/teacher/summary`}>
             <Button className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg px-4 sm:px-9 py-2 sm:py-3 font-semibold text-xs sm:text-sm flex-shrink-0">
               <span className="hidden sm:inline">{t("summaryCta")} </span>→
             </Button>

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { SidebarNew } from "@/components/layout/sidebar-new"
 import { apiClient } from "@/lib/api"
 import { Locale } from "@/lib/i18n/config"
+import { useTranslations } from "next-intl"
 
 export default function ReglementInterieurAdminPage({
   params,
@@ -13,6 +14,8 @@ export default function ReglementInterieurAdminPage({
   params: Promise<{ locale: Locale }>
 }) {
   const { locale } = use(params)
+  const t = useTranslations("admin.reglement")
+  const dateLocale = locale === "ar" ? "ar-MA" : "fr-FR"
   const [contenu, setContenu] = useState("")
   const [version, setVersion] = useState<number | null>(null)
   const [modifieLe, setModifieLe] = useState<string | null>(null)
@@ -33,7 +36,7 @@ export default function ReglementInterieurAdminPage({
           setModifieLe(res.data?.modifieLe ?? null)
         }
       } catch {
-        if (!cancelled) setErrorMsg("Impossible de charger le règlement intérieur.")
+        if (!cancelled) setErrorMsg(t("loadError"))
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -44,7 +47,7 @@ export default function ReglementInterieurAdminPage({
 
   const handleSave = async () => {
     if (!contenu.trim()) {
-      setErrorMsg("Le contenu ne peut pas être vide.")
+      setErrorMsg(t("emptyError"))
       return
     }
     setSaving(true)
@@ -54,9 +57,9 @@ export default function ReglementInterieurAdminPage({
       const res = await apiClient.updateAdminReglement(contenu)
       setVersion(res.data?.version ?? version)
       setModifieLe(res.data?.modifieLe ?? null)
-      setSuccessMsg("Règlement intérieur mis à jour avec succès.")
+      setSuccessMsg(t("success"))
     } catch {
-      setErrorMsg("Erreur lors de la mise à jour. Veuillez réessayer.")
+      setErrorMsg(t("saveError"))
     } finally {
       setSaving(false)
     }
@@ -89,14 +92,15 @@ export default function ReglementInterieurAdminPage({
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-foreground">Règlement Intérieur</h1>
+              <h1 className="text-2xl font-bold text-foreground">{t("title")}</h1>
               <p className="text-sm text-muted-foreground mt-1">
-                Modifiez le règlement intérieur affiché aux parents lors de l'inscription.
+                {t("subtitle")}
               </p>
               {version && (
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Version {version}
-                  {modifieLe && ` · Modifié le ${new Date(modifieLe).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })}`}
+                  {t("versionLine", { version })}
+                  {modifieLe &&
+                    ` · ${t("modifiedOn", { date: new Date(modifieLe).toLocaleDateString(dateLocale, { day: "2-digit", month: "long", year: "numeric" }) })}`}
                 </p>
               )}
             </div>
@@ -106,14 +110,14 @@ export default function ReglementInterieurAdminPage({
                 onClick={() => setPreview(!preview)}
                 className="text-sm"
               >
-                {preview ? "Éditer" : "Aperçu"}
+                {preview ? t("edit") : t("preview")}
               </Button>
               <Button
                 onClick={handleSave}
                 disabled={saving}
                 className="bg-primary text-primary-foreground text-sm"
               >
-                {saving ? "Enregistrement…" : "Enregistrer"}
+                {saving ? t("saving") : t("save")}
               </Button>
             </div>
           </div>
@@ -132,12 +136,12 @@ export default function ReglementInterieurAdminPage({
           <Card className="p-6">
             {loading ? (
               <div className="flex items-center justify-center py-16">
-                <p className="text-muted-foreground text-sm">Chargement…</p>
+                <p className="text-muted-foreground text-sm">{t("loading")}</p>
               </div>
             ) : preview ? (
               /* Preview mode */
               <div className="min-h-64">
-                <p className="text-xs text-muted-foreground mb-4 italic">Aperçu du règlement tel qu'il apparaît aux parents</p>
+                <p className="text-xs text-muted-foreground mb-4 italic">{t("previewHint")}</p>
                 <div
                   className="text-sm text-muted-foreground leading-relaxed space-y-1"
                   dangerouslySetInnerHTML={{ __html: renderMarkdown(contenu) }}
@@ -147,9 +151,9 @@ export default function ReglementInterieurAdminPage({
               /* Edit mode */
               <div className="space-y-3">
                 <div className="flex items-start justify-between">
-                  <Label className="text-sm font-medium">Contenu (Markdown supporté)</Label>
+                  <Label className="text-sm font-medium">{t("contentLabel")}</Label>
                   <span className="text-xs text-muted-foreground">
-                    Utilisez ## pour les titres, **texte** pour le gras
+                    {t("markdownHint")}
                   </span>
                 </div>
                 <textarea
@@ -157,10 +161,10 @@ export default function ReglementInterieurAdminPage({
                   onChange={(e) => setContenu(e.target.value)}
                   rows={20}
                   className="w-full p-4 border border-border rounded-lg font-mono text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/50 resize-y"
-                  placeholder="## Titre de section&#10;&#10;Contenu du règlement..."
+                  placeholder={t("contentPlaceholder")}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Ce contenu sera affiché à tous les parents lors de leur inscription. Chaque modification incrémente la version.
+                  {t("footerNote")}
                 </p>
               </div>
             )}

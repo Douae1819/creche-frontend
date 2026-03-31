@@ -26,7 +26,6 @@ function getMondayOfCurrentWeek(): Date {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function AdminPage({ params }: { params: Promise<{ locale: Locale }> }) {
-  const router = useRouter();
   const resolvedParams = use(params);
   const currentLocale = resolvedParams.locale;
   const t = useTranslations("admin.dashboard");
@@ -41,10 +40,8 @@ export default function AdminPage({ params }: { params: Promise<{ locale: Locale
   const [presencePeriod, setPresencePeriod] = useState<"day" | "week" | "month">("week");
 
   useEffect(() => {
-    const token = localStorage.getItem("token") || document.cookie.includes("token");
-    if (!token) { router.push("/auth/login"); return; }
     void fetchStats();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [presencePeriod]);
 
   async function fetchStats() {
@@ -168,22 +165,22 @@ export default function AdminPage({ params }: { params: Promise<{ locale: Locale
 
   const presenceStatusConfig = {
     complete: {
-      label: "Appel complet",
-      desc: `Tous les enfants ont été pointés aujourd'hui (${todayRecorded}/${totalChildren}).`,
+      label: t("presenceOfDay.status.complete.label"),
+      desc: t("presenceOfDay.status.complete.desc", { todayRecorded, totalChildren }),
       bg: "bg-emerald-500",
       icon: <CheckCircle2 className="w-5 h-5" />,
       badge: "OK",
     },
     partial: {
-      label: "Appel partiel",
-      desc: `${todayRecorded} enfant(s) pointé(s) sur ${totalChildren}. Certains enseignants n'ont pas encore fait l'appel.`,
+      label: t("presenceOfDay.status.partial.label"),
+      desc: t("presenceOfDay.status.partial.desc", { todayRecorded, totalChildren }),
       bg: "bg-amber-400",
       icon: <AlertTriangle className="w-5 h-5" />,
       badge: `${todayRecorded}/${totalChildren}`,
     },
     none: {
-      label: "Appel non effectué",
-      desc: "Aucune présence enregistrée pour aujourd'hui. Vérifiez que les enseignants ont fait l'appel.",
+      label: t("presenceOfDay.status.none.label"),
+      desc: t("presenceOfDay.status.none.desc"),
       bg: "bg-rose-500",
       icon: <Clock className="w-5 h-5" />,
       badge: "!",
@@ -221,7 +218,7 @@ export default function AdminPage({ params }: { params: Promise<{ locale: Locale
           <Card className="p-4 border border-gray-200 bg-white rounded-xl shadow-sm">
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-gray-900">Présence du jour</p>
+                <p className="text-sm font-semibold text-gray-900">{t("presenceOfDay.title")}</p>
                 <p className="text-xs text-gray-600 mt-1">{(cfg as any).desc}</p>
               </div>
               <div
@@ -280,7 +277,7 @@ export default function AdminPage({ params }: { params: Promise<{ locale: Locale
               <div>
                 <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
                   <Users className="w-4 h-4 text-muted-foreground" />
-                  Appel du jour par enseignant
+                  {t("teacherCall.title")}
                 </h2>
                 <p className="text-xs text-gray-500 mt-0.5">
                   {new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
@@ -288,7 +285,7 @@ export default function AdminPage({ params }: { params: Promise<{ locale: Locale
               </div>
               <Link href={`/${currentLocale}/admin/presences`}>
                 <Button variant="outline" size="sm" className="text-xs gap-1">
-                  Historique <ChevronRight className="w-3 h-3" />
+                  {t("teacherCall.historyCta")} <ChevronRight className="w-3 h-3" />
                 </Button>
               </Link>
             </div>
@@ -296,7 +293,7 @@ export default function AdminPage({ params }: { params: Promise<{ locale: Locale
             {teacherAttendanceStatus.length === 0 ? (
               <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 py-6 text-center">
                 <Clock className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
-                <p className="text-sm text-gray-500">Aucun enseignant n'a encore fait l'appel aujourd'hui.</p>
+                <p className="text-sm text-gray-500">{t("teacherCall.empty")}</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -313,7 +310,7 @@ export default function AdminPage({ params }: { params: Promise<{ locale: Locale
                             : "bg-amber-100 text-amber-700 border border-amber-200"
                         }`}
                       >
-                        {item.completed ? "Complet" : `${item.totalEnfantsAvecPresence}/${item.totalEnfants}`}
+                        {item.completed ? t("teacherCall.badges.complete") : `${item.totalEnfantsAvecPresence}/${item.totalEnfants}`}
                       </span>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -356,7 +353,7 @@ export default function AdminPage({ params }: { params: Promise<{ locale: Locale
                           : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                       }`}
                     >
-                      {p === "day" ? "Jour" : p === "week" ? "Semaine" : "Mois"}
+                      {p === "day" ? t("presenceChart.period.day") : p === "week" ? t("presenceChart.period.week") : t("presenceChart.period.month")}
                     </button>
                   ))}
                 </div>

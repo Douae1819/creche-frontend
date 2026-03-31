@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,20 +9,27 @@ import { use } from "react"
 import { Locale } from "@/lib/i18n/config"
 import { apiClient } from "@/lib/api"
 import { DailyResume } from "@/types/domain"
-import { Home, CheckCircle2, Baby, Utensils, CalendarDays, ChevronLeft, ChevronRight, Pencil, Check, X } from "lucide-react"
+import { Home, CheckCircle2, Baby, Utensils, CalendarDays, ChevronLeft, ChevronRight, Pencil, Check, X, RefreshCw } from "lucide-react"
 
 type Tab = "home" | "presence" | "child" | "menu" | "events"
 
-const LIEN_LABELS: Record<string, string> = {
-  Mere: "Mère", Pere: "Père", Tuteur: "Tuteur/Tutrice",
-  GrandMere: "Grand-mère", GrandPere: "Grand-père", Autre: "Autre",
-}
-const formatLien = (lien?: string | null): string =>
-  (lien && LIEN_LABELS[lien]) ? LIEN_LABELS[lien] : (lien ?? "—")
-
 export default function ParentDashboard({ params }: { params: Promise<{ locale: Locale }> }) {
   const resolvedParams = use(params)
+  const locale = resolvedParams.locale
+  const dateLocale = locale === "ar" ? "ar-MA" : "fr-FR"
   const t = useTranslations("parent")
+  const formatLien = (lien?: string | null): string => {
+    if (!lien) return "—"
+    switch (lien) {
+      case "Mere": return t("relations.Mere")
+      case "Pere": return t("relations.Pere")
+      case "Tuteur": return t("relations.Tuteur")
+      case "GrandMere": return t("relations.GrandMere")
+      case "GrandPere": return t("relations.GrandPere")
+      case "Autre": return t("relations.Autre")
+      default: return lien
+    }
+  }
   const [activeTab, setActiveTab] = useState<Tab>("home")
 
   const [child, setChild] = useState<{
@@ -73,6 +80,7 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
   const [profileLoading, setProfileLoading] = useState(true)
   const [profileError, setProfileError] = useState<string | null>(null)
   const [dailyMessage, setDailyMessage] = useState<string | null>(null)
+  const [classJournalForSelectedDate, setClassJournalForSelectedDate] = useState<string | null>(null)
   const [passwordMessage, setPasswordMessage] = useState<string | null>(null)
   const [passwordError, setPasswordError] = useState<string | null>(null)
   const [childDailyResume, setChildDailyResume] = useState<DailyResume | null>(null)
@@ -106,7 +114,7 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
         const profileRes = await apiClient.getParentProfile()
         const profile = profileRes.data
         const enfant = Array.isArray(profile?.enfants) && profile.enfants.length > 0 ? profile.enfants[0] : null
-        if (!enfant) { if (!cancelled) setProfileError("Aucun enfant associé au compte parent.") }
+        if (!enfant) { if (!cancelled) setProfileError(t("ui.noChildError")) }
         else if (!cancelled) {
           const prenom = profile?.prenom ?? profile?.tuteurs?.[0]?.prenom ?? ""
           if (!cancelled) setParentPrenom(prenom)
@@ -114,7 +122,7 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
           if (!cancelled) setTuteurs(tts)
           if (!cancelled) setEditTelephone(profile?.telephone ?? tts[0]?.telephone ?? "")
           if (!cancelled) setEditAdresse(profile?.adresse ?? tts[0]?.adresse ?? "")
-          setChild({ id: enfant.id, classeId: enfant.classeId ?? null, name: `${enfant.prenom ?? ""} ${enfant.nom ?? ""}`.trim() || "Enfant",
+          setChild({ id: enfant.id, classeId: enfant.classeId ?? null, name: `${enfant.prenom ?? ""} ${enfant.nom ?? ""}`.trim() || t("ui.defaultChildName"),
             class: enfant.classeNom ?? enfant.classeId ?? "", birthdate: enfant.dateNaissance ?? null, age: undefined,
             avatar: "👧", photoUrl: enfant.photoUrl ?? null, status: undefined,
             allergies: Array.isArray(enfant.allergies) ? enfant.allergies : [],
@@ -134,7 +142,8 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
           }
           if (enfant.classeId) {
             try {
-              const journalRes = await apiClient.getClassJournal(enfant.classeId as string)
+              const todayIso = new Date().toISOString().slice(0, 10)
+              const journalRes = await apiClient.getClassJournal(enfant.classeId as string, todayIso)
               const journal = journalRes.data
               if (!cancelled && journal) {
                 const fromObs = typeof journal.observations === "string" ? journal.observations : ""
@@ -183,8 +192,8 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
                   const start = ev.startAt ? new Date(ev.startAt) : null
                   const end   = ev.endAt   ? new Date(ev.endAt)   : null
                   let timeLabel: string | null = null
-                  if (start) { const st = start.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }); timeLabel = end ? `${st} – ${end.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}` : st }
-                  return { id: ev.id ?? String(Math.random()), date: start ? start.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" }).toUpperCase() : "", title: ev.titre ?? ev.title ?? "", time: timeLabel, description: ev.description ?? null }
+                  if (start) { const st = start.toLocaleTimeString(dateLocale, { hour: "2-digit", minute: "2-digit" }); timeLabel = end ? `${st} – ${end.toLocaleTimeString(dateLocale, { hour: "2-digit", minute: "2-digit" })}` : st }
+                  return { id: ev.id ?? String(Math.random()), date: start ? start.toLocaleDateString(dateLocale, { day: "2-digit", month: "short" }).toUpperCase() : "", title: ev.titre ?? ev.title ?? "", time: timeLabel, description: ev.description ?? null }
                 })
             )
           } catch {}
@@ -193,13 +202,39 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
     }
     loadProfileAndResume()
     return () => { cancelled = true }
-  }, [])
+  }, [locale, t, dateLocale])
+
+  // Load class journal for the selected date (used as fallback when child resume isn't available yet)
+  useEffect(() => {
+    const classeId = child?.classeId
+    if (!classeId) return
+    let cancelled = false
+    async function loadClassJournalForDate() {
+      try {
+        const res = await apiClient.getClassJournal(classeId as string, selectedDateStr)
+        const journal = res.data
+        const fromObs = typeof journal?.observations === "string" ? journal.observations : ""
+        const combined = [journal?.activites, journal?.apprentissages]
+          .filter((p: any) => typeof p === "string" && p.trim().length > 0)
+          .join(". ")
+        if (!cancelled) setClassJournalForSelectedDate(fromObs || combined || null)
+      } catch {
+        if (!cancelled) setClassJournalForSelectedDate(null)
+      }
+    }
+    loadClassJournalForDate()
+    return () => { cancelled = true }
+  }, [child?.classeId, selectedDateStr])
+
+  const [resumeRefreshTick, setResumeRefreshTick] = useState(0)
+  const refreshResumeRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     if (!child?.id) return
     let cancelled = false
     async function loadDateData() {
-      setDateDataLoading(true); setDailyResumeError(null); setChildDailyResume(null)
+      setDateDataLoading(true)
+      setDailyResumeError(null)
       try {
         const resumeRes = await apiClient.getChildResume(child!.id as string, selectedDateStr)
         if (!cancelled) setChildDailyResume(resumeRes.data)
@@ -209,7 +244,20 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
     }
     void loadDateData()
     return () => { cancelled = true }
-  }, [selectedDateStr, child?.id])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDateStr, child?.id, resumeRefreshTick])
+
+  // Poll every 60 s when viewing today — teacher may save during the day
+  useEffect(() => {
+    if (!child?.id) return
+    if (refreshResumeRef.current) clearInterval(refreshResumeRef.current)
+    refreshResumeRef.current = setInterval(() => {
+      const nowISO = new Date().toISOString().split("T")[0]
+      const viewingToday = selectedDateStr === nowISO
+      if (viewingToday) setResumeRefreshTick(t => t + 1)
+    }, 60_000)
+    return () => { if (refreshResumeRef.current) clearInterval(refreshResumeRef.current) }
+  }, [child?.id, selectedDateStr])
 
   useEffect(() => {
     if (!child?.id) return
@@ -266,7 +314,7 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
       setPasswords({ current: "", new: "", confirm: "" }); setShowPasswordForm(false); setPasswordMessage(t("profile.passwordChanged"))
     } catch (err: any) {
       const msg = err?.response?.data?.message
-      setPasswordError(typeof msg === "string" ? msg : Array.isArray(msg) ? msg.join(" ") : "Erreur lors du changement de mot de passe.")
+      setPasswordError(typeof msg === "string" ? msg : Array.isArray(msg) ? msg.join(" ") : t("ui.passwordErrorGeneric"))
     }
   }
 
@@ -275,10 +323,10 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
     try {
       await apiClient.updateParentMe({ telephone: editTelephone || undefined, adresse: editAdresse || undefined })
       setTuteurs(prev => prev.map((tt, i) => i === 0 ? { ...tt, telephone: editTelephone||null, adresse: editAdresse||null } : tt))
-      setProfileSaveMsg("Profil mis à jour avec succès."); setEditingProfile(false)
+      setProfileSaveMsg(t("ui.profileUpdated")); setEditingProfile(false)
     } catch (err: any) {
       const msg = err?.response?.data?.message
-      setProfileSaveErr(typeof msg === "string" ? msg : "Erreur lors de la mise à jour.")
+      setProfileSaveErr(typeof msg === "string" ? msg : t("ui.updateError"))
     } finally { setProfileSaving(false) }
   }
 
@@ -286,7 +334,7 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
     <div className="min-h-screen flex items-center justify-center bg-white">
       <div className="text-center space-y-3">
         <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto animate-pulse" style={{ background: "#AEDFF7" }}><span className="text-2xl">👶</span></div>
-        <p className="text-sm text-gray-500">Chargement…</p>
+        <p className="text-sm text-gray-500">{t("ui.loading")}</p>
       </div>
     </div>
   )
@@ -298,11 +346,11 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
 
   // ─── Nav items ────────────────────────────────────────────────────────────
   const navItems: { id: Tab; icon: React.ReactNode; label: string }[] = [
-    { id: "home",     icon: <Home className="w-5 h-5" />,          label: "Accueil" },
-    { id: "presence", icon: <CheckCircle2 className="w-5 h-5" />,  label: "Présence" },
-    { id: "child",    icon: <Baby className="w-5 h-5" />,          label: "Enfant" },
-    { id: "menu",     icon: <Utensils className="w-5 h-5" />,      label: "Menu" },
-    { id: "events",   icon: <CalendarDays className="w-5 h-5" />,  label: "Événements" },
+    { id: "home",     icon: <Home className="w-5 h-5" />,          label: t("nav.home") },
+    { id: "presence", icon: <CheckCircle2 className="w-5 h-5" />,  label: t("nav.presence") },
+    { id: "child",    icon: <Baby className="w-5 h-5" />,          label: t("nav.child") },
+    { id: "menu",     icon: <Utensils className="w-5 h-5" />,      label: t("nav.menu") },
+    { id: "events",   icon: <CalendarDays className="w-5 h-5" />,  label: t("nav.events") },
   ]
 
   // ─── Date nav helper ──────────────────────────────────────────────────────
@@ -313,13 +361,13 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
       </button>
       <div className="text-center min-w-[110px]">
         <p className="text-xs font-semibold" style={{ color: "#1A1A1A" }}>
-          {isToday ? "Aujourd'hui" : selectedDate.toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "short" })}
+          {isToday ? t("ui.today") : selectedDate.toLocaleDateString(dateLocale, { weekday: "short", day: "2-digit", month: "short" })}
         </p>
       </div>
       <button type="button" onClick={goToNextDay} disabled={isToday} className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-200 hover:bg-gray-100 text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed">
         <ChevronRight className="w-4 h-4" />
       </button>
-      {!isToday && <button type="button" onClick={goToToday} className="ml-1 text-xs hover:underline" style={{ color: "#FF6F61" }}>Aujourd'hui</button>}
+      {!isToday && <button type="button" onClick={goToToday} className="ml-1 text-xs hover:underline" style={{ color: "#FF6F61" }}>{t("ui.today")}</button>}
     </div>
   )
 
@@ -331,35 +379,47 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
   const ResumeEmpty = ({ forDate }: { forDate: string }) => {
     const isTodayDate = forDate === todayISO
     const label = isTodayDate
-      ? "Aujourd'hui"
-      : new Date(forDate + "T12:00:00").toLocaleDateString("fr-FR", { weekday: "long", day: "2-digit", month: "long" })
+      ? t("ui.today")
+      : new Date(forDate + "T12:00:00").toLocaleDateString(dateLocale, { weekday: "long", day: "2-digit", month: "long" })
     return (
       <div className="text-center py-6 space-y-2">
         <span className="text-4xl">📋</span>
-        <p className="text-sm font-semibold text-gray-600">Résumé de journée pas encore disponible</p>
-        <p className="text-xs text-gray-400">{label} — l&apos;enseignant n&apos;a pas encore renseigné le résumé.</p>
+        <p className="text-sm font-semibold text-gray-700">{t("ui.resumeNotAvailable")}</p>
+        <p className="text-xs text-gray-400">{t("ui.resumeNotAvailableHint", { label })}</p>
         {!isTodayDate && (
           <button type="button" onClick={goToToday} className="mt-1 text-xs font-medium hover:underline" style={{ color: "#FF6F61" }}>
-            ← Revenir à aujourd&apos;hui
+            {t("ui.backToToday")}
           </button>
         )}
       </div>
     )
   }
 
+  const ClassJournalFallback = ({ forDate, text }: { forDate: string; text: string }) => (
+    <div className="space-y-3">
+      <p className="text-xs text-gray-400 capitalize">
+        {new Date(forDate + "T12:00:00").toLocaleDateString(dateLocale, { weekday: "long", day: "2-digit", month: "long" })}
+      </p>
+      <div className="rounded-xl p-3 border" style={{ background: "rgba(174,223,247,0.18)", borderColor: "#AEDFF7" }}>
+        <p className="text-xs font-medium mb-1" style={{ color: "#1A1A1A" }}>📝 {t("ui.classJournalTitle")}</p>
+        <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{text}</p>
+      </div>
+    </div>
+  )
+
   const ResumeCards = ({ resume }: { resume: typeof childDailyResume }) => {
     if (!resume) return null
     return (
       <div className="space-y-3">
         <p className="text-xs text-gray-400 capitalize">
-          {new Date(resume.date).toLocaleDateString("fr-FR", { weekday: "long", day: "2-digit", month: "long" })}
+          {new Date(resume.date).toLocaleDateString(dateLocale, { weekday: "long", day: "2-digit", month: "long" })}
         </p>
         <div className="grid grid-cols-2 gap-3">
           {[
-            { emoji: "🙂", label: "Humeur",       value: resume.humeur,        color: "#EBF7FD", textColor: "#1A73A7" },
-            { emoji: "😴", label: "Sieste",        value: resume.sieste,        color: "#F0EEFF", textColor: "#5B4FCF" },
-            { emoji: "🍽️", label: "Appétit",       value: resume.appetit,       color: "#FFF4ED", textColor: "#D97706" },
-            { emoji: "✨", label: "Participation", value: resume.participation,  color: "#F0FDF4", textColor: "#16A34A" },
+            { emoji: "🙂", label: t("ui.mood"),       value: resume.humeur,        color: "#EBF7FD", textColor: "#1A73A7" },
+            { emoji: "😴", label: t("ui.nap"),        value: resume.sieste,        color: "#F0EEFF", textColor: "#5B4FCF" },
+            { emoji: "🍽️", label: t("ui.appetite"),       value: resume.appetit,       color: "#FFF4ED", textColor: "#D97706" },
+            { emoji: "✨", label: t("ui.participation"), value: resume.participation,  color: "#F0FDF4", textColor: "#16A34A" },
           ].map(item => (
             <div key={item.label} className="rounded-xl p-3 flex flex-col gap-1" style={{ background: item.color, border: "1px solid rgba(0,0,0,0.06)" }}>
               <span className="text-xl">{item.emoji}</span>
@@ -370,7 +430,7 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
         </div>
         {resume.observations && resume.observations.length > 0 && (
           <div className="rounded-xl p-3 border" style={{ background: "rgba(174,223,247,0.2)", borderColor: "#AEDFF7" }}>
-            <p className="text-xs font-medium mb-1" style={{ color: "#1A1A1A" }}>💬 Observations</p>
+            <p className="text-xs font-medium mb-1" style={{ color: "#1A1A1A" }}>💬 {t("ui.observations")}</p>
             <ul className="text-sm text-gray-600 space-y-0.5">
               {resume.observations.map((obs, i) => <li key={i}>• {obs}</li>)}
             </ul>
@@ -381,21 +441,19 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
   }
 
   // For Presence tab: shows selected date resume with loading state
-  const DailyResumeContent = () => {
-    const resumeDateStr = childDailyResume ? new Date(childDailyResume.date).toISOString().slice(0, 10) : null
-    const resumeIsForSelectedDate = resumeDateStr === selectedDateStr
-    return (
-      <div>
-        {dateDataLoading ? (
-          <p className="text-sm text-gray-400 text-center py-6 animate-pulse">Chargement…</p>
-        ) : (resumeIsForSelectedDate && childDailyResume) ? (
-          <ResumeCards resume={childDailyResume} />
-        ) : (
-          <ResumeEmpty forDate={selectedDateStr} />
-        )}
-      </div>
-    )
-  }
+  const DailyResumeContent = () => (
+    <div>
+      {dateDataLoading ? (
+        <p className="text-sm text-gray-400 text-center py-6 animate-pulse">{t("ui.loading")}</p>
+      ) : childDailyResume ? (
+        <ResumeCards resume={childDailyResume} />
+      ) : classJournalForSelectedDate ? (
+        <ClassJournalFallback forDate={selectedDateStr} text={classJournalForSelectedDate} />
+      ) : (
+        <ResumeEmpty forDate={selectedDateStr} />
+      )}
+    </div>
+  )
 
   // ─── Tab: Home ────────────────────────────────────────────────────────────
   const HomeTab = () => (
@@ -404,10 +462,10 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
       <style>{`@keyframes fadeSlideIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }`}</style>
       <div className="rounded-2xl p-5" style={{ background: "#EBF6FB", border: "1.5px solid transparent", animation: "fadeSlideIn 0.5s ease-out" }}>
         <p className="text-xs font-medium mb-1" style={{ color: "#1A1A1A", opacity: 0.65 }}>
-          {new Date().toLocaleDateString("fr-FR",{weekday:"long",day:"2-digit",month:"long"})}
+          {new Date().toLocaleDateString(dateLocale,{weekday:"long",day:"2-digit",month:"long"})}
         </p>
         <h2 className="text-xl font-bold mb-3" style={{ color: "#1A1A1A" }}>
-          {"Bonjour"+(parentPrenom?", "+parentPrenom:"")+" 👋"}
+          {parentPrenom ? t("ui.greetingNamed", { name: parentPrenom }) : t("ui.greeting")}
         </h2>
         <div className="flex items-center gap-3 rounded-xl p-3" style={{ background: "rgba(255,255,255,0.45)" }}>
           <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center border-2 border-white/60" style={{ background: "white" }}>
@@ -423,13 +481,26 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
       {/* Daily resume */}
       <Card className="border shadow-sm rounded-2xl" style={{ borderColor: "#AEDFF7" }}>
         <CardHeader className="pb-3 border-b" style={{ borderColor: "#AEDFF7" }}>
-          <CardTitle className="text-sm font-bold text-gray-900">📋 Résumé du jour</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-bold text-gray-900">📋 {t("ui.dailySummaryTitle")}</CardTitle>
+            <button
+              type="button"
+              onClick={() => setResumeRefreshTick(tk => tk + 1)}
+              disabled={dateDataLoading}
+              className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-40"
+              title={t("ui.refreshTitle")}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${dateDataLoading ? "animate-spin" : ""}`} />
+            </button>
+          </div>
         </CardHeader>
         <CardContent className="pt-4">
           {dateDataLoading ? (
-            <p className="text-sm text-gray-400 text-center py-6 animate-pulse">Chargement…</p>
-          ) : (childDailyResume && new Date(childDailyResume.date).toISOString().slice(0, 10) === todayISO) ? (
+            <p className="text-sm text-gray-400 text-center py-6 animate-pulse">{t("ui.loading")}</p>
+          ) : childDailyResume ? (
             <ResumeCards resume={childDailyResume} />
+          ) : dailyMessage ? (
+            <ClassJournalFallback forDate={todayISO} text={dailyMessage} />
           ) : (
             <ResumeEmpty forDate={todayISO} />
           )}
@@ -439,10 +510,10 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
       {/* Class message */}
       <Card className="border shadow-sm rounded-2xl" style={{ borderColor: "#AEDFF7" }}>
         <CardHeader className="pb-3 border-b" style={{ borderColor: "#AEDFF7" }}>
-          <CardTitle className="text-sm font-bold text-gray-900">💬 Message de la classe</CardTitle>
+          <CardTitle className="text-sm font-bold text-gray-900">💬 {t("ui.messageClassTitle")}</CardTitle>
         </CardHeader>
         <CardContent className="pt-4">
-          {dailyMessage ? <p className="text-sm text-gray-700 leading-relaxed">{dailyMessage}</p> : <p className="text-sm text-gray-400">Aucun message pour aujourd'hui.</p>}
+          {dailyMessage ? <p className="text-sm text-gray-700 leading-relaxed">{dailyMessage}</p> : <p className="text-sm text-gray-400">{t("ui.noMessageToday")}</p>}
         </CardContent>
       </Card>
 
@@ -451,8 +522,8 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
         <Card className="border shadow-sm rounded-2xl" style={{ borderColor: "#AEDFF7" }}>
           <CardHeader className="pb-3 border-b" style={{ borderColor: "#AEDFF7" }}>
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-bold text-gray-900">📅 Événements à venir</CardTitle>
-              <button type="button" onClick={() => setActiveTab("events")} className="text-xs hover:underline" style={{ color: "#FF6F61" }}>Voir tout</button>
+              <CardTitle className="text-sm font-bold text-gray-900">📅 {t("ui.upcomingEventsTitle")}</CardTitle>
+              <button type="button" onClick={() => setActiveTab("events")} className="text-xs hover:underline" style={{ color: "#FF6F61" }}>{t("ui.seeAll")}</button>
             </div>
           </CardHeader>
           <CardContent className="pt-3 space-y-2">
@@ -482,7 +553,7 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
     for (let i = 0; i < 12; i++) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
       const val = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`
-      const label = d.toLocaleDateString("fr-FR", { month: "long", year: "numeric" })
+      const label = d.toLocaleDateString(dateLocale, { month: "long", year: "numeric" })
       monthOptions.push({ value: val, label: label.charAt(0).toUpperCase() + label.slice(1) })
     }
 
@@ -492,15 +563,15 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
 
     return (
       <div className="px-4 pt-4 pb-4 space-y-4">
-        <h2 className="text-xl font-bold text-gray-900">Présences</h2>
+        <h2 className="text-xl font-bold text-gray-900">{t("ui.presencesTitle")}</h2>
 
         {/* Today status */}
         <div className={`rounded-2xl p-4 border-2 ${statut === "Present" ? "bg-emerald-50 border-emerald-300" : statut === "Absent" ? "bg-red-50 border-red-300" : "bg-gray-50 border-gray-200"}`}>
           <div className="flex items-center gap-3">
             <span className="text-3xl">{statut === "Present" ? "✅" : statut === "Absent" ? "❌" : "❓"}</span>
             <div>
-              <p className="font-bold text-gray-900">{statut === "Present" ? "Présent(e) aujourd'hui" : statut === "Absent" ? "Absent(e) aujourd'hui" : "Statut du jour inconnu"}</p>
-              <p className="text-xs text-gray-500">{new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "2-digit", month: "long" })}</p>
+              <p className="font-bold text-gray-900">{statut === "Present" ? t("ui.presentToday") : statut === "Absent" ? t("ui.absentToday") : t("ui.unknownStatus")}</p>
+              <p className="text-xs text-gray-500">{new Date().toLocaleDateString(dateLocale, { weekday: "long", day: "2-digit", month: "long" })}</p>
             </div>
           </div>
         </div>
@@ -509,7 +580,7 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
         <Card className="border shadow-sm rounded-2xl" style={{ borderColor: "#AEDFF7" }}>
           <CardHeader className="pb-3 border-b" style={{ borderColor: "#AEDFF7" }}>
             <div className="flex items-center justify-between gap-2 flex-wrap">
-              <CardTitle className="text-sm font-bold text-gray-900 flex-shrink-0">Résumé du jour</CardTitle>
+              <CardTitle className="text-sm font-bold text-gray-900 flex-shrink-0">{t("ui.dailySummaryTitle")}</CardTitle>
               <DateNav />
             </div>
           </CardHeader>
@@ -520,7 +591,7 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
         <Card className="border border-gray-100 shadow-sm rounded-2xl">
           <CardHeader className="pb-3 border-b border-gray-100">
             <div className="flex items-center justify-between gap-2 flex-wrap">
-              <CardTitle className="text-sm font-bold text-gray-900 flex-shrink-0">Historique des présences</CardTitle>
+              <CardTitle className="text-sm font-bold text-gray-900 flex-shrink-0">{t("ui.attendanceHistory")}</CardTitle>
               {/* Month filter */}
               <select
                 value={presenceFilterMonth}
@@ -528,7 +599,7 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
                 className="text-xs border rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 max-w-[160px]"
                 style={{ borderColor: "#C5E8F7", color: "#1A1A1A" }}
               >
-                <option value="">Tous les mois</option>
+                <option value="">{t("ui.allMonths")}</option>
                 {monthOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>
@@ -539,33 +610,34 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
               <div className="flex gap-2 mb-3">
                 <div className="flex-1 rounded-xl px-3 py-2 text-center" style={{ background: "#F0FDF4", border: "1px solid #BBF7D0" }}>
                   <p className="text-lg font-bold text-emerald-700">{nbPresent}</p>
-                  <p className="text-xs text-emerald-600">Présent</p>
+                  <p className="text-xs text-emerald-600">{t("ui.present")}</p>
                 </div>
                 <div className="flex-1 rounded-xl px-3 py-2 text-center" style={{ background: "#FFF5F5", border: "1px solid #FED7D7" }}>
                   <p className="text-lg font-bold text-red-600">{nbAbsent}</p>
-                  <p className="text-xs text-red-500">Absent</p>
+                  <p className="text-xs text-red-500">{t("ui.absent")}</p>
                 </div>
                 <div className="flex-1 rounded-xl px-3 py-2 text-center" style={{ background: "#EAF5FB", border: "1px solid #C5E8F7" }}>
                   <p className="text-lg font-bold" style={{ color: "#1A73A7" }}>{presenceTotal}</p>
-                  <p className="text-xs text-gray-500">Total</p>
+                  <p className="text-xs text-gray-500">{t("ui.total")}</p>
                 </div>
               </div>
             )}
 
             {presenceLoading ? (
-              <p className="text-sm text-gray-400 text-center py-6 animate-pulse">Chargement…</p>
+              <p className="text-sm text-gray-400 text-center py-6 animate-pulse">{t("ui.loading")}</p>
             ) : presences.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-6">Aucune présence trouvée.</p>
+              <p className="text-sm text-gray-400 text-center py-6">{t("ui.noPresencesFound")}</p>
             ) : (
               <div className="space-y-1">
                 {presences.map((p: any, i: number) => {
                   const d = (p.date ?? "").slice(0, 10)
-                  const label = d ? new Date(d).toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "short" }) : "—"
+                  const label = d ? new Date(d).toLocaleDateString(dateLocale, { weekday: "short", day: "2-digit", month: "short" }) : "—"
+                  const stLabel = p.statut === "Present" ? t("ui.statusPresent") : p.statut === "Absent" ? t("ui.statusAbsent") : (p.statut ?? "—")
                   return (
                     <div key={i} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                       <p className="text-sm text-gray-700 capitalize">{label}</p>
                       <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${p.statut === "Present" ? "bg-emerald-100 text-emerald-700" : p.statut === "Absent" ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-600"}`}>
-                        {p.statut ?? "—"}
+                        {stLabel}
                       </span>
                     </div>
                   )
@@ -579,13 +651,13 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
                 <button type="button" onClick={() => setPresencePage(p => Math.max(1, p-1))} disabled={presencePage <= 1 || presenceLoading}
                   className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg disabled:opacity-40"
                   style={{ background: "#EAF5FB", color: "#1A1A1A", border: "1px solid #C5E8F7" }}>
-                  <ChevronLeft className="w-3.5 h-3.5" /> Précédent
+                  <ChevronLeft className="w-3.5 h-3.5" /> {t("ui.prev")}
                 </button>
-                <p className="text-xs text-gray-500">Page {presencePage} / {totalPages}</p>
+                <p className="text-xs text-gray-500">{t("ui.presencePage", { page: presencePage, totalPages })}</p>
                 <button type="button" onClick={() => setPresencePage(p => Math.min(totalPages, p+1))} disabled={presencePage >= totalPages || presenceLoading}
                   className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg disabled:opacity-40"
                   style={{ background: "#EAF5FB", color: "#1A1A1A", border: "1px solid #C5E8F7" }}>
-                  Suivant <ChevronRight className="w-3.5 h-3.5" />
+                  {t("ui.next")} <ChevronRight className="w-3.5 h-3.5" />
                 </button>
               </div>
             )}
@@ -625,23 +697,23 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
     setSanteSaving(true); setSanteSaveMsg(null)
     try {
       await apiClient.upsertChildSante(child.id as string, santeForm)
-      setSanteSaveMsg("Profil santé enregistré.")
+      setSanteSaveMsg(t("ui.santeSaved"))
       await loadSante()
       setEditingSante(false)
     } catch (err: unknown) {
       const msg = (err as {response?: {data?: {message?: unknown}}})?.response?.data?.message
-      setSanteSaveMsg(typeof msg === "string" ? "Erreur: "+msg : "Erreur lors de la sauvegarde.")
+      setSanteSaveMsg(typeof msg === "string" ? t("ui.errorWithDetail", { detail: msg }) : t("ui.updateError"))
     } finally { setSanteSaving(false) }
   }
 
   const handleDeleteSante = async () => {
-    if (!child?.id || !window.confirm("Supprimer le profil santé ?")) return
+    if (!child?.id || !window.confirm(t("ui.santeDeleteConfirm"))) return
     setSanteDeleting(true)
     try {
       await apiClient.deleteChildSante(child.id as string)
       setSante(null); setSanteForm({ medecin: "", notes: "", restrictionAlimentaire: "", tags: [], allergies: [], intolerances: [] })
-      setSanteSaveMsg("Profil santé supprimé.")
-    } catch { setSanteSaveMsg("Erreur lors de la suppression.") }
+      setSanteSaveMsg(t("ui.santeDeleted"))
+    } catch { setSanteSaveMsg(t("ui.updateError")) }
     finally { setSanteDeleting(false) }
   }
 
@@ -657,18 +729,18 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
     try {
       await apiClient.updateParentDelegation(child.id as string, delegationId, delegationForm)
       setAuthorizedPersons(prev => prev.map(p => p.id === delegationId ? { ...p, name: delegationForm.nom, phone: delegationForm.telephone, role: delegationForm.relation } : p))
-      setEditingDelegation(null); setDelegationMsg("Personne modifiée.")
-    } catch { setDelegationMsg("Erreur lors de la modification.") }
+      setEditingDelegation(null); setDelegationMsg(t("ui.delegationUpdated"))
+    } catch { setDelegationMsg(t("ui.updateError")) }
     finally { setDelegationSaving(false) }
   }
 
   const handleDeleteDelegation = async (delegationId: string) => {
-    if (!child?.id || !window.confirm("Supprimer cette personne autorisée ?")) return
+    if (!child?.id || !window.confirm(t("ui.delegationDeleteConfirm"))) return
     setDelegationSaving(true)
     try {
       await apiClient.deleteParentDelegation(child.id as string, delegationId)
-      setAuthorizedPersons(prev => prev.filter(p => p.id !== delegationId)); setDelegationMsg("Personne supprimée.")
-    } catch { setDelegationMsg("Erreur lors de la suppression.") }
+      setAuthorizedPersons(prev => prev.filter(p => p.id !== delegationId)); setDelegationMsg(t("ui.delegationDeleted"))
+    } catch { setDelegationMsg(t("ui.updateError")) }
     finally { setDelegationSaving(false) }
   }
 
@@ -679,14 +751,14 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
       const res = await apiClient.addParentDelegation(child.id as string, newDelegationForm)
       const d = res.data as {id:string; nom:string; telephone:string; relation:string}
       setAuthorizedPersons(prev => [...prev, { id: d.id, name: d.nom, phone: d.telephone, role: d.relation }])
-      setAddingDelegation(false); setNewDelegationForm({ nom: "", telephone: "", cin: "", relation: "" }); setDelegationMsg("Personne ajoutée.")
-    } catch { setDelegationMsg("Erreur lors de l'ajout.") }
+      setAddingDelegation(false); setNewDelegationForm({ nom: "", telephone: "", cin: "", relation: "" }); setDelegationMsg(t("ui.delegationAdded"))
+    } catch { setDelegationMsg(t("ui.updateError")) }
     finally { setDelegationSaving(false) }
   }
 
   const ChildTab = () => (
     <div className="px-4 pt-4 pb-4 space-y-4">
-      <h2 className="text-xl font-bold text-gray-900">Profil de l'enfant</h2>
+      <h2 className="text-xl font-bold text-gray-900">{t("ui.profileChildTitle")}</h2>
 
       {/* Child + class info */}
       <Card className="border shadow-sm rounded-2xl" style={{ borderColor: "#AEDFF7" }}>
@@ -700,7 +772,7 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
               <p className="text-sm" style={{ color: "#1A1A1A", opacity: 0.6 }}>{child?.class}</p>
               {child?.birthdate && (
                 <p className="text-xs text-gray-500 mt-0.5">
-                  {"Né(e) le "}{new Date(child.birthdate).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })}
+                  {t("ui.bornOn", { date: new Date(child.birthdate).toLocaleDateString(dateLocale, { day: "2-digit", month: "long", year: "numeric" }) })}
                 </p>
               )}
             </div>
@@ -708,10 +780,13 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
           {(child?.classeNbEleves != null || (child?.classeEnseignants && child.classeEnseignants.length > 0)) && (
             <div className="mt-3 pt-3 border-t border-gray-100 space-y-1.5">
               {child?.classeNbEleves != null && (
-                <p className="text-sm text-gray-700">👶 <strong>{child.classeNbEleves}</strong> élève{child.classeNbEleves > 1 ? "s" : ""} dans la classe</p>
+                <p className="text-sm text-gray-700">
+                  👶{" "}
+                  {child.classeNbEleves > 1 ? t("ui.studentsInClassPlural", { count: child.classeNbEleves }) : t("ui.studentsInClass", { count: child.classeNbEleves })}
+                </p>
               )}
               {child?.classeEnseignants && child.classeEnseignants.length > 0 && (
-                <p className="text-sm text-gray-700">👩‍🏫 {child.classeEnseignants.map((e, i) => <span key={i}>{i > 0 ? ", " : ""}{[e.prenom, e.nom].filter(Boolean).join(" ") || "Enseignant"}</span>)}</p>
+                <p className="text-sm text-gray-700">👩‍🏫 {child.classeEnseignants.map((e, i) => <span key={i}>{i > 0 ? ", " : ""}{[e.prenom, e.nom].filter(Boolean).join(" ") || t("ui.teacherFallback")}</span>)}</p>
               )}
             </div>
           )}
@@ -722,31 +797,31 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
       <Card className="border shadow-sm rounded-2xl" style={{ borderColor: "#AEDFF7" }}>
         <CardHeader className="pb-3 border-b" style={{ borderColor: "#AEDFF7" }}>
           <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-bold text-gray-900">👥 Personnes autorisées</CardTitle>
+            <CardTitle className="text-sm font-bold text-gray-900">👥 {t("ui.authorizedTitle")}</CardTitle>
             <button type="button" onClick={() => { setAddingDelegation(true); setDelegationMsg(null) }}
               className="text-xs font-medium px-3 py-1.5 rounded-lg" style={{ background: "#EAF5FB", color: "#1A1A1A", border: "1px solid #C5E8F7" }}>
-              + Ajouter
+              + {t("ui.add")}
             </button>
           </div>
         </CardHeader>
         <CardContent className="pt-3 space-y-2">
           {delegationMsg && <p className="text-xs px-3 py-2 rounded-lg mb-1" style={{ background: "#EAF5FB", color: "#1A1A1A" }}>{delegationMsg}</p>}
           {authorizedPersons.length === 0 && !addingDelegation && (
-            <p className="text-sm text-gray-400 text-center py-4">Aucune personne autorisée.</p>
+            <p className="text-sm text-gray-400 text-center py-4">{t("ui.noAuthorized")}</p>
           )}
           {authorizedPersons.map(person => (
             <div key={person.id} className="rounded-xl p-3" style={{ background: "rgba(174,223,247,0.15)", border: "1px solid #AEDFF7" }}>
               {editingDelegation === person.id ? (
                 <div className="space-y-2">
-                  {([["Nom", "nom", "Nom complet"], ["Téléphone", "telephone", "06 00 00 00 00"], ["CIN", "cin", "CIN"], ["Relation", "relation", "Ex: Grand-mère"]] as [string, keyof typeof delegationForm, string][]).map(([label, field, ph]) => (
+                  {([[t("ui.delegationName"), "nom", t("ui.phFullName")], [t("ui.delegationPhone"), "telephone", t("ui.phPhone")], [t("ui.delegationCin"), "cin", t("ui.phCin")], [t("ui.delegationRelation"), "relation", t("ui.phRelation")]] as [string, keyof typeof delegationForm, string][]).map(([label, field, ph]) => (
                     <div key={field}>
                       <p className="text-xs text-gray-500 mb-0.5">{label}</p>
                       <Input value={delegationForm[field]} onChange={e => setDelegationForm(prev => ({ ...prev, [field]: e.target.value }))} placeholder={ph} className="h-8 text-sm" />
                     </div>
                   ))}
                   <div className="flex gap-2 pt-1">
-                    <button type="button" onClick={() => handleSaveDelegation(person.id)} disabled={delegationSaving} className="flex-1 py-1.5 rounded-lg text-xs font-medium text-white" style={{ background: "#FF6F61" }}>{delegationSaving ? "..." : "Sauvegarder"}</button>
-                    <button type="button" onClick={() => setEditingDelegation(null)} className="flex-1 py-1.5 rounded-lg text-xs font-medium" style={{ background: "#EAF5FB", color: "#6B7280", border: "1px solid #C5E8F7" }}>Annuler</button>
+                    <button type="button" onClick={() => handleSaveDelegation(person.id)} disabled={delegationSaving} className="flex-1 py-1.5 rounded-lg text-xs font-medium text-white" style={{ background: "#FF6F61" }}>{delegationSaving ? "..." : t("ui.save")}</button>
+                    <button type="button" onClick={() => setEditingDelegation(null)} className="flex-1 py-1.5 rounded-lg text-xs font-medium" style={{ background: "#EAF5FB", color: "#6B7280", border: "1px solid #C5E8F7" }}>{t("ui.cancel")}</button>
                   </div>
                 </div>
               ) : (
@@ -766,16 +841,16 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
           ))}
           {addingDelegation && (
             <div className="rounded-xl p-3 border-2 border-dashed space-y-2" style={{ borderColor: "#AEDFF7" }}>
-              <p className="text-xs font-semibold text-gray-700">Nouvelle personne autorisée</p>
-              {([["Nom *", "nom", "Nom complet"], ["Téléphone *", "telephone", "06 00 00 00 00"], ["CIN", "cin", "CIN"], ["Relation", "relation", "Ex: Grand-mère"]] as [string, keyof typeof newDelegationForm, string][]).map(([label, field, ph]) => (
+              <p className="text-xs font-semibold text-gray-700">{t("ui.newAuthorized")}</p>
+              {([[t("ui.delegationNameReq"), "nom", t("ui.phFullName")], [t("ui.delegationPhoneReq"), "telephone", t("ui.phPhone")], [t("ui.delegationCin"), "cin", t("ui.phCin")], [t("ui.delegationRelation"), "relation", t("ui.phRelation")]] as [string, keyof typeof newDelegationForm, string][]).map(([label, field, ph]) => (
                 <div key={field}>
                   <p className="text-xs text-gray-500 mb-0.5">{label}</p>
                   <Input value={newDelegationForm[field]} onChange={e => setNewDelegationForm(prev => ({ ...prev, [field]: e.target.value }))} placeholder={ph} className="h-8 text-sm" />
                 </div>
               ))}
               <div className="flex gap-2 pt-1">
-                <button type="button" onClick={handleAddDelegation} disabled={delegationSaving || !newDelegationForm.nom || !newDelegationForm.telephone} className="flex-1 py-1.5 rounded-lg text-xs font-medium text-white disabled:opacity-50" style={{ background: "#FF6F61" }}>{delegationSaving ? "..." : "Ajouter"}</button>
-                <button type="button" onClick={() => { setAddingDelegation(false); setNewDelegationForm({ nom: "", telephone: "", cin: "", relation: "" }) }} className="flex-1 py-1.5 rounded-lg text-xs font-medium" style={{ background: "#EAF5FB", color: "#6B7280", border: "1px solid #C5E8F7" }}>Annuler</button>
+                <button type="button" onClick={handleAddDelegation} disabled={delegationSaving || !newDelegationForm.nom || !newDelegationForm.telephone} className="flex-1 py-1.5 rounded-lg text-xs font-medium text-white disabled:opacity-50" style={{ background: "#FF6F61" }}>{delegationSaving ? "..." : t("ui.add")}</button>
+                <button type="button" onClick={() => { setAddingDelegation(false); setNewDelegationForm({ nom: "", telephone: "", cin: "", relation: "" }) }} className="flex-1 py-1.5 rounded-lg text-xs font-medium" style={{ background: "#EAF5FB", color: "#6B7280", border: "1px solid #C5E8F7" }}>{t("ui.cancel")}</button>
               </div>
             </div>
           )}
@@ -787,19 +862,19 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
       {/* Password change */}
       <Card className="border border-gray-100 shadow-sm rounded-2xl">
         <CardHeader className="pb-3 border-b border-gray-50">
-          <CardTitle className="text-sm font-bold text-gray-900">🔐 Sécurité</CardTitle>
+          <CardTitle className="text-sm font-bold text-gray-900">🔐 {t("ui.securityTitle")}</CardTitle>
         </CardHeader>
         <CardContent className="pt-4">
           {passwordMessage && <div className="mb-3 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">{passwordMessage}</div>}
           {passwordError && <div className="mb-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{passwordError}</div>}
           {!showPasswordForm ? (
-            <Button onClick={() => setShowPasswordForm(true)} variant="outline" size="sm" className="w-full border-gray-200">Changer le mot de passe</Button>
+            <Button onClick={() => setShowPasswordForm(true)} variant="outline" size="sm" className="w-full border-gray-200">{t("profile.changePasswordCta")}</Button>
           ) : (
             <div className="space-y-3">
               {[
-                { key: "current" as const, label: "Mot de passe actuel", ph: "••••••••" },
-                { key: "new" as const,     label: "Nouveau mot de passe", ph: "••••••••" },
-                { key: "confirm" as const, label: "Confirmer",           ph: "••••••••" },
+                { key: "current" as const, label: t("profile.currentPasswordLabel"), ph: "••••••••" },
+                { key: "new" as const,     label: t("profile.newPasswordLabel"), ph: "••••••••" },
+                { key: "confirm" as const, label: t("ui.confirmPasswordShort"),           ph: "••••••••" },
               ].map(field => (
                 <div key={field.key}>
                   <p className="text-xs font-medium text-gray-600 mb-1">{field.label}</p>
@@ -807,8 +882,8 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
                 </div>
               ))}
               <div className="flex gap-2 pt-1">
-                <Button onClick={handlePasswordChange} size="sm" className="flex-1 text-white" style={{ background: "#FF6F61" }}>Enregistrer</Button>
-                <Button onClick={() => setShowPasswordForm(false)} variant="outline" size="sm" className="flex-1">Annuler</Button>
+                <Button onClick={handlePasswordChange} size="sm" className="flex-1 text-white" style={{ background: "#FF6F61" }}>{t("profile.saveButton")}</Button>
+                <Button onClick={() => setShowPasswordForm(false)} variant="outline" size="sm" className="flex-1">{t("profile.cancelButton")}</Button>
               </div>
             </div>
           )}
@@ -818,13 +893,12 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
   )
 
   // ─── Tab: Menu ────────────────────────────────────────────────────────────
-  const MENU_ROWS = [
-    { icon: "🥛", label: "Collation",  hint: "vers 9h30",  key: "entree"  as const },
-    { icon: "🍽️", label: "Déjeuner",   hint: "vers 12h00", key: "plat"    as const },
-    { icon: "🍪", label: "Goûter",     hint: "vers 16h00", key: "dessert" as const },
-  ]
-
   const MenuTab = () => {
+    const MENU_ROWS = [
+      { icon: "🥛", label: t("ui.collation"),  hint: t("ui.hintApprox9"),  key: "entree"  as const },
+      { icon: "🍽️", label: t("ui.lunch"),   hint: t("ui.hintApprox12"), key: "plat"    as const },
+      { icon: "🍪", label: t("ui.snack"),     hint: t("ui.hintApprox16"), key: "dessert" as const },
+    ]
     // Current week: Mon–Sun (local dates, no UTC offset issues)
     const today = new Date()
     const weekStart = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (today.getDay() + 6) % 7)
@@ -840,14 +914,14 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
 
     return (
       <div className="px-4 pt-4 pb-4 space-y-4">
-        <h2 className="text-xl font-bold text-gray-900">Menu</h2>
+        <h2 className="text-xl font-bold text-gray-900">{t("ui.menuTabTitle")}</h2>
 
         {/* Today's menu */}
         <Card className="shadow-md rounded-2xl overflow-hidden" style={{ border: "2px solid #AEDFF7", background: "linear-gradient(to bottom, rgba(174,223,247,0.12), white)" }}>
           <CardHeader className="pb-3 border-b" style={{ borderColor: "#AEDFF7" }}>
             <CardTitle className="text-sm font-bold text-gray-900 flex items-center gap-2">
-              <span>🍽️</span> Menu du jour
-              {todayMenu && <span className="ml-auto text-xs font-normal text-gray-400">{new Date(todayMenu.date).toLocaleDateString("fr-FR", { weekday: "long", day: "2-digit", month: "long" })}</span>}
+              <span>🍽️</span> {t("ui.menuTodayTitle")}
+              {todayMenu && <span className="ml-auto text-xs font-normal text-gray-400">{new Date(todayMenu.date).toLocaleDateString(dateLocale, { weekday: "long", day: "2-digit", month: "long" })}</span>}
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-4">
@@ -865,12 +939,12 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
                     </div>
                   </div>
                 ))}
-                {!todayMenu.entree && !todayMenu.plat && !todayMenu.dessert && <p className="text-sm text-gray-400">Aucun repas renseigné.</p>}
+                {!todayMenu.entree && !todayMenu.plat && !todayMenu.dessert && <p className="text-sm text-gray-400">{t("ui.noMealsFilled")}</p>}
               </div>
             ) : (
               <div className="text-center py-4">
                 <span className="text-3xl">🍽️</span>
-                <p className="text-sm text-gray-400 mt-2">Aucun menu publié pour aujourd&apos;hui.</p>
+                <p className="text-sm text-gray-400 mt-2">{t("ui.noMenuPublished")}</p>
               </div>
             )}
           </CardContent>
@@ -880,9 +954,9 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
         <Card className="border shadow-sm rounded-2xl overflow-hidden" style={{ borderColor: "#AEDFF7" }}>
           <CardHeader className="pb-3 border-b" style={{ borderColor: "#AEDFF7" }}>
             <CardTitle className="text-sm font-bold text-gray-900">
-              📋 Menus de la semaine
+              📋 {t("ui.menuWeekTitle")}
               <span className="ml-2 text-[11px] font-normal text-gray-400">
-                {weekStart.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })} – {weekEnd.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })}
+                {weekStart.toLocaleDateString(dateLocale, { day: "2-digit", month: "short" })} – {weekEnd.toLocaleDateString(dateLocale, { day: "2-digit", month: "short" })}
               </span>
             </CardTitle>
           </CardHeader>
@@ -890,7 +964,7 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
             {weekMenuList.length === 0 ? (
               <div className="text-center py-5">
                 <span className="text-3xl">🗓️</span>
-                <p className="text-sm text-gray-400 mt-2">Aucun menu publié pour cette semaine.</p>
+                <p className="text-sm text-gray-400 mt-2">{t("ui.noMenuWeek")}</p>
               </div>
             ) : weekMenuList.map((menu: any) => {
               const d = new Date(); const localISO = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`
@@ -898,8 +972,8 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
               return (
                 <div key={menu.date} className="rounded-xl p-3" style={{ background: isMenuToday ? "rgba(174,223,247,0.25)" : "rgba(174,223,247,0.08)", border: `1px solid ${isMenuToday ? "#AEDFF7" : "rgba(174,223,247,0.35)"}` }}>
                   <p className="text-xs font-bold mb-2 capitalize flex items-center gap-1.5" style={{ color: isMenuToday ? "#1A73A7" : "#1A1A1A" }}>
-                    {isMenuToday && <span className="text-[10px] bg-blue-100 text-blue-700 rounded-full px-2 py-0.5">Aujourd&apos;hui</span>}
-                    {new Date(menu.date + "T12:00:00").toLocaleDateString("fr-FR", { weekday: "long", day: "2-digit", month: "short" })}
+                    {isMenuToday && <span className="text-[10px] bg-blue-100 text-blue-700 rounded-full px-2 py-0.5">{t("ui.todayBadge")}</span>}
+                    {new Date(menu.date + "T12:00:00").toLocaleDateString(dateLocale, { weekday: "long", day: "2-digit", month: "short" })}
                   </p>
                   <div className="space-y-1">
                     {MENU_ROWS.filter(r => menu[r.key]).map(row => (
@@ -909,7 +983,7 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
                         <span className="text-gray-800 font-medium break-words min-w-0 flex-1">{menu[row.key]}</span>
                       </div>
                     ))}
-                    {!menu.entree && !menu.plat && !menu.dessert && <p className="text-xs text-gray-400 italic">Aucun repas renseigné</p>}
+                    {!menu.entree && !menu.plat && !menu.dessert && <p className="text-xs text-gray-400 italic">{t("ui.noMealsDay")}</p>}
                   </div>
                 </div>
               )
@@ -923,12 +997,12 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
   // ─── Tab: Events ──────────────────────────────────────────────────────────
   const EventsTab = () => (
     <div className="px-4 pt-4 pb-4 space-y-4">
-      <h2 className="text-xl font-bold text-gray-900">Événements</h2>
+      <h2 className="text-xl font-bold text-gray-900">{t("ui.eventsTitle")}</h2>
       {upcomingEvents.length === 0 ? (
         <Card className="border border-gray-100 rounded-2xl">
           <CardContent className="pt-8 pb-8 text-center">
             <span className="text-4xl">📅</span>
-            <p className="mt-3 text-sm text-gray-400">Aucun événement à venir.</p>
+            <p className="mt-3 text-sm text-gray-400">{t("ui.noUpcomingEventsShort")}</p>
           </CardContent>
         </Card>
       ) : (

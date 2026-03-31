@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { SidebarNew } from "@/components/layout/sidebar-new";
 import { apiClient } from "@/lib/api";
 import type { Locale } from "@/lib/i18n/config";
+import { useTranslations } from "next-intl";
+import { withLocalePath } from "@/lib/i18n/locale-path";
 
 interface TeachersPageProps {
   params: Promise<{ locale: Locale }>;
@@ -43,6 +45,7 @@ interface ClassItem {
 export default function TeachersPage({ params }: TeachersPageProps) {
   const resolvedParams = use(params);
   const currentLocale = resolvedParams.locale;
+  const tt = useTranslations("admin.teachersManage");
 
   const [teachers, setTeachers] = useState<TeacherItem[]>([]);
   const [classes, setClasses] = useState<ClassItem[]>([]);
@@ -107,7 +110,7 @@ export default function TeachersPage({ params }: TeachersPageProps) {
       setClasses(classesData);
     } catch (err) {
       console.error("[Admin/Teachers] Error loading data", err);
-      setError("Impossible de charger les enseignants.");
+      setError(tt("loadError"));
     } finally {
       setLoading(false);
     }
@@ -120,7 +123,7 @@ export default function TeachersPage({ params }: TeachersPageProps) {
   const handleCreateTeacher = async () => {
     setCreateError(null);
     if (!newTeacher.email || !newTeacher.prenom || !newTeacher.nom) {
-      setCreateError("Prénom, nom et email sont obligatoires.");
+      setCreateError(tt("createRequired"));
       return;
     }
     try {
@@ -130,7 +133,7 @@ export default function TeachersPage({ params }: TeachersPageProps) {
       await fetchData();
     } catch (err: any) {
       const msg = err?.response?.data?.message;
-      setCreateError(typeof msg === "string" ? msg : Array.isArray(msg) ? msg.join(" ") : "Erreur lors de la création.");
+      setCreateError(typeof msg === "string" ? msg : Array.isArray(msg) ? msg.join(" ") : tt("createError"));
     } finally {
       setCreating(false);
     }
@@ -146,7 +149,7 @@ export default function TeachersPage({ params }: TeachersPageProps) {
       await fetchData();
     } catch (err: any) {
       const msg = err?.response?.data?.message;
-      alert(typeof msg === "string" ? msg : Array.isArray(msg) ? msg.join(" ") : "Erreur lors de l'assignation.");
+      alert(typeof msg === "string" ? msg : Array.isArray(msg) ? msg.join(" ") : tt("assignError"));
     } finally {
       setAssignLoading(false);
     }
@@ -154,13 +157,13 @@ export default function TeachersPage({ params }: TeachersPageProps) {
 
   const handleRemoveClass = async (teacher: TeacherItem, classeId: string) => {
     if (!teacher.enseignantId) return;
-    if (!confirm("Retirer cet enseignant de cette classe ?")) return;
+    if (!confirm(tt("unassignConfirm"))) return;
     try {
       await apiClient.removeTeacherFromClass(classeId, teacher.enseignantId);
       await fetchData();
     } catch (err: any) {
       const msg = err?.response?.data?.message;
-      alert(typeof msg === "string" ? msg : "Erreur lors de la suppression.");
+      alert(typeof msg === "string" ? msg : tt("removeError"));
     }
   };
 
@@ -168,6 +171,13 @@ export default function TeachersPage({ params }: TeachersPageProps) {
     if (s === "ACTIVE") return "bg-emerald-100 text-emerald-700 border-emerald-200";
     if (s === "INVITED") return "bg-amber-100 text-amber-700 border-amber-200";
     return "bg-gray-100 text-gray-500 border-gray-200";
+  };
+
+  const statutLabel = (s: string) => {
+    if (s === "ACTIVE") return tt("statusActive");
+    if (s === "INVITED") return tt("statusInvited");
+    if (s === "DISABLED") return tt("statusDisabled");
+    return s;
   };
 
   // Classes not yet assigned to this teacher
@@ -183,13 +193,13 @@ export default function TeachersPage({ params }: TeachersPageProps) {
           {/* Header */}
           <div className="flex items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-foreground">Enseignants</h1>
+              <h1 className="text-2xl md:text-3xl font-bold text-foreground">{tt("title")}</h1>
               <p className="text-sm text-muted-foreground mt-1">
-                {loading ? "Chargement..." : `${teachers.length} enseignant(s)`}
+                {loading ? tt("loadingShort") : tt("count", { count: teachers.length })}
               </p>
             </div>
-            <Link href={`/${currentLocale}/admin`}>
-              <Button variant="outline">← Dashboard</Button>
+            <Link href={withLocalePath(currentLocale, "/admin")}>
+              <Button variant="outline">{tt("backDashboard")}</Button>
             </Link>
           </div>
 
@@ -197,45 +207,45 @@ export default function TeachersPage({ params }: TeachersPageProps) {
 
           {/* Add teacher form */}
           <Card className="p-5">
-            <h2 className="text-base font-semibold mb-3">Inviter un enseignant</h2>
+            <h2 className="text-base font-semibold mb-3">{tt("inviteTitle")}</h2>
             <p className="text-xs text-muted-foreground mb-3">
-              Un email d'invitation avec identifiants sera envoyé automatiquement.
+              {tt("inviteHint")}
             </p>
             {createError && <p className="text-xs text-destructive mb-2">{createError}</p>}
             <div className="flex flex-col sm:flex-row gap-2">
               <input
                 type="text"
-                placeholder="Prénom *"
+                placeholder={tt("firstNamePh")}
                 className="flex-1 border border-border rounded-md px-3 py-2 text-sm bg-background"
                 value={newTeacher.prenom}
                 onChange={(e) => setNewTeacher((p) => ({ ...p, prenom: e.target.value }))}
               />
               <input
                 type="text"
-                placeholder="Nom *"
+                placeholder={tt("lastNamePh")}
                 className="flex-1 border border-border rounded-md px-3 py-2 text-sm bg-background"
                 value={newTeacher.nom}
                 onChange={(e) => setNewTeacher((p) => ({ ...p, nom: e.target.value }))}
               />
               <input
                 type="email"
-                placeholder="Email *"
+                placeholder={tt("emailPh")}
                 className="flex-[2] border border-border rounded-md px-3 py-2 text-sm bg-background"
                 value={newTeacher.email}
                 onChange={(e) => setNewTeacher((p) => ({ ...p, email: e.target.value }))}
               />
               <Button onClick={handleCreateTeacher} disabled={creating} className="whitespace-nowrap">
-                {creating ? "Création..." : "Inviter"}
+                {creating ? tt("creating") : tt("invite")}
               </Button>
             </div>
           </Card>
 
           {/* Teachers list */}
           {loading ? (
-            <p className="text-sm text-muted-foreground">Chargement…</p>
+            <p className="text-sm text-muted-foreground">{tt("loading")}</p>
           ) : teachers.length === 0 ? (
             <Card className="p-10 text-center border-dashed">
-              <p className="text-muted-foreground">Aucun enseignant. Commencez par en inviter un.</p>
+              <p className="text-muted-foreground">{tt("empty")}</p>
             </Card>
           ) : (
             <div className="space-y-3">
@@ -256,10 +266,10 @@ export default function TeachersPage({ params }: TeachersPageProps) {
                     {/* Statut + link to profile */}
                     <div className="flex items-center gap-2">
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border uppercase ${statutColor(teacher.statut)}`}>
-                        {teacher.statut}
+                        {statutLabel(teacher.statut)}
                       </span>
-                      <Link href={`/${currentLocale}/admin/utilisateurs/${teacher.userId}`}>
-                        <Button variant="outline" size="sm">Profil</Button>
+                      <Link href={withLocalePath(currentLocale, `/admin/utilisateurs/${teacher.userId}`)}>
+                        <Button variant="outline" size="sm">{tt("profile")}</Button>
                       </Link>
                     </div>
                   </div>
@@ -267,11 +277,11 @@ export default function TeachersPage({ params }: TeachersPageProps) {
                   {/* Assigned classes */}
                   <div className="mt-4">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                      Classes assignées
+                      {tt("assignedClasses")}
                     </p>
                     <div className="flex flex-wrap gap-2 items-center min-h-[28px]">
                       {teacher.assignedClasses.length === 0 ? (
-                        <span className="text-xs text-muted-foreground">Aucune classe</span>
+                        <span className="text-xs text-muted-foreground">{tt("noClass")}</span>
                       ) : (
                         teacher.assignedClasses.map((ac) => (
                           <span
@@ -287,7 +297,7 @@ export default function TeachersPage({ params }: TeachersPageProps) {
                             <button
                               onClick={() => handleRemoveClass(teacher, ac.classeId)}
                               className="ml-0.5 text-blue-400 hover:text-red-500 transition-colors"
-                              title="Retirer de cette classe"
+                              title={tt("removeTitle")}
                             >
                               ×
                             </button>
@@ -306,7 +316,7 @@ export default function TeachersPage({ params }: TeachersPageProps) {
                           value={selectedClassId}
                           onChange={(e) => setSelectedClassId(e.target.value)}
                         >
-                          <option value="">— Choisir une classe —</option>
+                          <option value="">{tt("chooseClass")}</option>
                           {availableClasses(teacher).map((c) => (
                             <option key={c.id} value={c.id}>
                               {c.nom}{c.niveau ? ` (${c.niveau})` : ""}
@@ -318,14 +328,14 @@ export default function TeachersPage({ params }: TeachersPageProps) {
                           onClick={() => handleAssignClass(teacher.userId)}
                           disabled={assignLoading || !selectedClassId}
                         >
-                          Assigner
+                          {tt("assign")}
                         </Button>
                         <Button
                           size="sm"
                           variant="outline"
                           onClick={() => { setAssigningTeacherId(null); setSelectedClassId(""); }}
                         >
-                          Annuler
+                          {tt("cancel")}
                         </Button>
                       </div>
                     ) : (
@@ -335,7 +345,7 @@ export default function TeachersPage({ params }: TeachersPageProps) {
                         onClick={() => { setAssigningTeacherId(teacher.userId); setSelectedClassId(""); }}
                         disabled={availableClasses(teacher).length === 0}
                       >
-                        + Assigner à une classe
+                        {tt("assignToClass")}
                       </Button>
                     )}
                   </div>

@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useParams } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -28,6 +29,8 @@ type ExportStats = {
 
 export default function TeacherSummary() {
   const t = useTranslations("teacher.summary")
+  const params = useParams()
+  const locale = (params?.locale as string) ?? "fr"
 
   const [summaryData, setSummaryData] = useState<ClassSummary | null>(null)
   const [stats, setStats] = useState<ExportStats | null>(null)
@@ -246,7 +249,7 @@ export default function TeacherSummary() {
             {summaryData.classeNom} • {summaryData.date}
           </p>
         </div>
-        <Link href="/teacher">
+        <Link href={`/${locale}/teacher`}>
           <Button variant="outline" className="rounded-lg bg-transparent border border-gray-300 font-medium text-sm">
             ← {t("back")}
           </Button>
@@ -447,7 +450,7 @@ export default function TeacherSummary() {
 
       {/* Action Buttons */}
       <div className="flex justify-center">
-        <Link href="/teacher">
+        <Link href={`/${locale}/teacher`}>
           <Button className="rounded-lg bg-gray-100 text-gray-900 hover:bg-gray-200 font-semibold px-8 py-3">
             {t("sections.finishDayButton")}
           </Button>

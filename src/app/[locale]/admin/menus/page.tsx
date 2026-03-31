@@ -8,6 +8,7 @@ import { ChevronLeft, ChevronRight, Pencil, Trash2, CheckCircle2, X } from "luci
 import { apiClient } from "@/lib/api";
 import { SidebarNew } from "@/components/layout/sidebar-new";
 import { Locale } from "@/lib/i18n/config";
+import { useTranslations } from "next-intl";
 
 // ─── types ────────────────────────────────────────────────────────────────────
 interface DayMenu {
@@ -28,12 +29,12 @@ interface DayModalState {
 }
 
 // ─── constants ────────────────────────────────────────────────────────────────
-const JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"] as const;
+const DAY_KEYS = ["lundi", "mardi", "mercredi", "jeudi", "vendredi"] as const;
 
-const MEAL_ROWS = [
-  { key: "collationMatin" as const, label: "🍎 Collation du matin",  placeholder: "Ex : Yaourt, fruits frais" },
-  { key: "repas"          as const, label: "🍽️ Repas (déjeuner)",    placeholder: "Ex : Poulet rôti, riz"     },
-  { key: "gouter"         as const, label: "🧃 Goûter",              placeholder: "Ex : Compote, lait"        },
+const MEAL_KEY_META = [
+  { key: "collationMatin" as const, emoji: "🍎" },
+  { key: "repas" as const, emoji: "🍽️" },
+  { key: "gouter" as const, emoji: "🧃" },
 ];
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -66,15 +67,22 @@ const getWeekDates = (monday: Date): string[] =>
     return toISO(d);
   });
 
-const formatWeekLabel = (monday: Date) => {
+const formatWeekLabel = (monday: Date, dateLocale: string) => {
   const friday = new Date(monday);
   friday.setDate(monday.getDate() + 4);
-  return `${monday.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })} – ${friday.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })}`;
+  return `${monday.toLocaleDateString(dateLocale, { day: "2-digit", month: "short" })} – ${friday.toLocaleDateString(dateLocale, { day: "2-digit", month: "short", year: "numeric" })}`;
 };
 
 // ─── component ────────────────────────────────────────────────────────────────
 export default function MenusPage({ params }: { params: Promise<{ locale: Locale }> }) {
   const { locale: currentLocale } = use(params);
+  const t = useTranslations("admin.menus");
+  const dateLocale = currentLocale === "ar" ? "ar-MA" : "fr-FR";
+  const mealRows = MEAL_KEY_META.map((m) => ({
+    key: m.key,
+    label: `${m.emoji} ${t(`rows.${m.key}`)}`,
+    placeholder: t(`placeholders.${m.key}`),
+  }));
 
   const [monday,   setMonday]   = useState<Date>(() => getMondayOf(new Date()));
   const [allMenus, setAllMenus] = useState<WeekData>({});
@@ -112,7 +120,7 @@ export default function MenusPage({ params }: { params: Promise<{ locale: Locale
       });
       setAllMenus(mapped);
     } catch {
-      setError("Erreur lors du chargement des menus.");
+      setError(t("errors.load"));
     } finally {
       setLoading(false);
     }
@@ -139,7 +147,7 @@ export default function MenusPage({ params }: { params: Promise<{ locale: Locale
     if (!dayModal) return;
     const { date, collationMatin, repas, gouter } = dayModal;
     if (!collationMatin.trim() && !repas.trim() && !gouter.trim()) {
-      setModalErr("Veuillez renseigner au moins un champ.");
+      setModalErr(t("errors.needOneField"));
       return;
     }
     setSaving(true);
@@ -171,7 +179,7 @@ export default function MenusPage({ params }: { params: Promise<{ locale: Locale
       }));
       closeModal();
     } catch {
-      setModalErr("Erreur lors de la sauvegarde. Veuillez réessayer.");
+      setModalErr(t("errors.save"));
     } finally {
       setSaving(false);
     }
@@ -201,7 +209,7 @@ export default function MenusPage({ params }: { params: Promise<{ locale: Locale
       });
       setConfirmDelete(false);
     } catch {
-      alert("Erreur lors de la suppression de la semaine.");
+      alert(t("errors.deleteWeek"));
     } finally {
       setDeleting(false);
     }
@@ -209,7 +217,7 @@ export default function MenusPage({ params }: { params: Promise<{ locale: Locale
   const saveWeekModal = async () => {
     const { collationMatin, repas, gouter } = weekForm;
     if (!collationMatin.trim() && !repas.trim() && !gouter.trim()) {
-      setWeekErr("Veuillez renseigner au moins un champ.");
+      setWeekErr(t("errors.needOneField"));
       return;
     }
     setWeekSaving(true);
@@ -232,7 +240,7 @@ export default function MenusPage({ params }: { params: Promise<{ locale: Locale
       setWeekModal(false);
       setWeekForm({ collationMatin: "", repas: "", gouter: "" });
     } catch {
-      setWeekErr("Erreur lors de la création des menus.");
+      setWeekErr(t("errors.createWeek"));
     } finally {
       setWeekSaving(false);
     }
@@ -245,7 +253,7 @@ export default function MenusPage({ params }: { params: Promise<{ locale: Locale
       await apiClient.publishMenu(menu.id);
       setAllMenus(prev => ({ ...prev, [date]: { ...prev[date], statut: "Publie" } }));
     } catch {
-      alert("Erreur lors de la publication.");
+      alert(t("errors.publish"));
     }
   };
 
@@ -260,7 +268,7 @@ export default function MenusPage({ params }: { params: Promise<{ locale: Locale
         await apiClient.publishMenu(menu.id);
         setAllMenus(prev => ({ ...prev, [date]: { ...prev[date], statut: "Publie" } }));
       }
-    } catch { alert("Erreur lors de la publication de la semaine."); }
+    } catch { alert(t("errors.publishWeek")); }
     finally { setPublishingWeek(false); }
   };
 
@@ -279,26 +287,26 @@ export default function MenusPage({ params }: { params: Promise<{ locale: Locale
 
           {/* ── Header ── */}
           <div className="space-y-3">
-            <h1 className="text-2xl md:text-3xl font-bold text-foreground">Menus de la semaine</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-foreground">{t("title")}</h1>
 
             {/* Navigation row */}
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={prevWeek} className="h-9 w-9 p-0"><ChevronLeft className="w-4 h-4" /></Button>
-              <span className="text-sm font-medium text-foreground text-center flex-1 sm:flex-none sm:min-w-[200px]">{formatWeekLabel(monday)}</span>
+              <span className="text-sm font-medium text-foreground text-center flex-1 sm:flex-none sm:min-w-[200px]">{formatWeekLabel(monday, dateLocale)}</span>
               <Button variant="outline" size="sm" onClick={nextWeek} className="h-9 w-9 p-0"><ChevronRight className="w-4 h-4" /></Button>
-              <Button variant="outline" size="sm" onClick={goToday} className="hidden sm:inline-flex">Aujourd&apos;hui</Button>
+              <Button variant="outline" size="sm" onClick={goToday} className="hidden sm:inline-flex">{t("ui.today")}</Button>
             </div>
 
             {/* Action buttons row */}
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" size="sm" onClick={goToday} className="sm:hidden">Aujourd&apos;hui</Button>
+              <Button variant="outline" size="sm" onClick={goToday} className="sm:hidden">{t("ui.today")}</Button>
               <Button
                 size="sm"
                 onClick={() => { setWeekModal(true); setWeekErr(null); setWeekForm({ collationMatin: "", repas: "", gouter: "" }); }}
                 className="bg-primary text-primary-foreground hover:bg-primary/90"
               >
-                <span className="hidden sm:inline">+ Ajouter menu semaine</span>
-                <span className="sm:hidden">+ Semaine</span>
+                <span className="hidden sm:inline">{t("ui.addWeekFull")}</span>
+                <span className="sm:hidden">{t("ui.addWeekShort")}</span>
               </Button>
               {weekDates.some(d => allMenus[d]?.id && allMenus[d]?.statut !== "Publie") && (
                 <Button
@@ -308,7 +316,7 @@ export default function MenusPage({ params }: { params: Promise<{ locale: Locale
                   className="bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50"
                 >
                   <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
-                  {publishingWeek ? "Publication…" : "Publier la semaine"}
+                  {publishingWeek ? t("ui.publishingWeek") : t("ui.publishWeek")}
                 </Button>
               )}
               <Button
@@ -319,8 +327,8 @@ export default function MenusPage({ params }: { params: Promise<{ locale: Locale
                 className="text-destructive border-destructive/40 hover:bg-destructive/10 disabled:opacity-40"
               >
                 <Trash2 className="w-3.5 h-3.5 mr-1.5" />
-                <span className="hidden sm:inline">Supprimer la semaine</span>
-                <span className="sm:hidden">Supprimer</span>
+                <span className="hidden sm:inline">{t("ui.deleteWeekFull")}</span>
+                <span className="sm:hidden">{t("ui.deleteWeekShort")}</span>
               </Button>
             </div>
           </div>
@@ -330,7 +338,7 @@ export default function MenusPage({ params }: { params: Promise<{ locale: Locale
           )}
 
           {loading ? (
-            <p className="text-sm text-muted-foreground">Chargement des menus…</p>
+            <p className="text-sm text-muted-foreground">{t("ui.loadingList")}</p>
           ) : (
             <>
               {/* ── Mobile: day cards ─────────────────────────────── */}
@@ -345,22 +353,22 @@ export default function MenusPage({ params }: { params: Promise<{ locale: Locale
                       {/* Day header */}
                       <div className={`flex items-start justify-between gap-2 px-4 py-3 ${isToday ? "bg-primary/5" : "bg-muted/30"}`}>
                         <div className="flex-shrink-0">
-                          <p className={`font-bold text-sm ${isToday ? "text-primary" : "text-foreground"}`}>{JOURS[idx]}</p>
-                          <p className="text-xs text-muted-foreground">{d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })}</p>
+                          <p className={`font-bold text-sm ${isToday ? "text-primary" : "text-foreground"}`}>{t(`jours.${DAY_KEYS[idx]}`)}</p>
+                          <p className="text-xs text-muted-foreground">{d.toLocaleDateString(dateLocale, { day: "2-digit", month: "short" })}</p>
                         </div>
                         <div className="flex flex-wrap items-center gap-1.5 justify-end">
                           {isPublished ? (
                             <>
-                              <span className="text-[11px] bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full border border-emerald-200 font-medium whitespace-nowrap">✓ Publié</span>
-                              <button onClick={() => openModal(iso)} className="inline-flex items-center gap-1 text-[11px] bg-sky-100 text-sky-700 px-2 py-1 rounded-full border border-sky-200 active:opacity-70 whitespace-nowrap"><Pencil className="w-3 h-3" /> Modifier</button>
+                              <span className="text-[11px] bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full border border-emerald-200 font-medium whitespace-nowrap">{t("ui.publishedCheck")}</span>
+                              <button onClick={() => openModal(iso)} className="inline-flex items-center gap-1 text-[11px] bg-sky-100 text-sky-700 px-2 py-1 rounded-full border border-sky-200 active:opacity-70 whitespace-nowrap"><Pencil className="w-3 h-3" /> {t("ui.edit")}</button>
                             </>
                           ) : (
                             <>
                               <button onClick={() => openModal(iso)} className="inline-flex items-center gap-1 text-[11px] bg-sky-100 text-sky-700 px-2 py-1 rounded-full border border-sky-200 active:opacity-70 whitespace-nowrap">
-                                <Pencil className="w-3 h-3" /> {menu?.id ? "Modifier" : "Ajouter"}
+                                <Pencil className="w-3 h-3" /> {menu?.id ? t("ui.edit") : t("ui.add")}
                               </button>
                               {menu?.id && (
-                                <button onClick={() => handlePublish(iso)} className="text-[11px] bg-amber-100 text-amber-700 px-2 py-1 rounded-full border border-amber-200 active:opacity-70 whitespace-nowrap">Publier</button>
+                                <button onClick={() => handlePublish(iso)} className="text-[11px] bg-amber-100 text-amber-700 px-2 py-1 rounded-full border border-amber-200 active:opacity-70 whitespace-nowrap">{t("actions.publish")}</button>
                               )}
                             </>
                           )}
@@ -368,7 +376,7 @@ export default function MenusPage({ params }: { params: Promise<{ locale: Locale
                       </div>
                       {/* Meal rows */}
                       <div className="divide-y divide-border px-4">
-                        {MEAL_ROWS.map(row => (
+                        {mealRows.map(row => (
                           <div key={row.key} className="py-2.5 flex items-start gap-2">
                             <span className="text-xs font-semibold text-muted-foreground flex-shrink-0 pt-0.5">{row.label}</span>
                             <span className="text-sm text-foreground break-words min-w-0">{menu?.[row.key] || <span className="text-muted-foreground/40 italic text-xs">—</span>}</span>
@@ -386,36 +394,36 @@ export default function MenusPage({ params }: { params: Promise<{ locale: Locale
                   <table className="w-full text-sm border-collapse">
                     <thead>
                       <tr className="bg-muted/50 border-b border-border">
-                        <th className="px-4 py-3 text-left font-semibold text-foreground w-44 border-r border-border">Repas</th>
+                        <th className="px-4 py-3 text-left font-semibold text-foreground w-44 border-r border-border">{t("ui.mealColumn")}</th>
                         {weekDates.map((iso, idx) => {
                           const isToday    = iso === todayISO;
                           const menu       = allMenus[iso];
                           const isPublished = menu?.statut === "Publie";
                           return (
                             <th key={iso} className={`px-3 py-3 text-center font-semibold min-w-[155px] border-r border-border last:border-r-0 ${isToday ? "bg-primary/5" : ""}`}>
-                              <div className={`text-sm font-bold ${isToday ? "text-primary" : "text-foreground"}`}>{JOURS[idx]}</div>
+                              <div className={`text-sm font-bold ${isToday ? "text-primary" : "text-foreground"}`}>{t(`jours.${DAY_KEYS[idx]}`)}</div>
                               <div className="text-xs text-muted-foreground font-normal mb-1">
-                                {parseLocalDate(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })}
+                                {parseLocalDate(iso).toLocaleDateString(dateLocale, { day: "2-digit", month: "short" })}
                               </div>
                               {/* Actions */}
                               <div className="flex justify-center items-center gap-1 mt-1">
                                 {isPublished ? (
                                   <div className="flex justify-center items-center gap-1">
-                                    <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full border border-emerald-200">Publié ✓</span>
-                                    <button onClick={() => openModal(iso)} className="text-[10px] inline-flex items-center gap-0.5 bg-sky-100 text-sky-700 px-1.5 py-0.5 rounded-full border border-sky-200 hover:bg-sky-200 transition-colors"><Pencil className="w-2.5 h-2.5" /> Mod.</button>
+                                    <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full border border-emerald-200">{t("ui.publishedShort")}</span>
+                                    <button onClick={() => openModal(iso)} className="text-[10px] inline-flex items-center gap-0.5 bg-sky-100 text-sky-700 px-1.5 py-0.5 rounded-full border border-sky-200 hover:bg-sky-200 transition-colors"><Pencil className="w-2.5 h-2.5" /> {t("ui.editShort")}</button>
                                     </div>
                                 ) : (
                                   <>
                                     <button
                                       onClick={() => openModal(iso)}
                                       className="text-[10px] inline-flex items-center gap-0.5 bg-sky-100 text-sky-700 px-1.5 py-0.5 rounded-full border border-sky-200 hover:bg-sky-200 transition-colors"
-                                      title="Modifier ce jour"
+                                      title={t("ui.clickToEditTitle")}
                                     >
-                                      <Pencil className="w-2.5 h-2.5" /> Modifier
+                                      <Pencil className="w-2.5 h-2.5" /> {t("ui.edit")}
                                     </button>
                                     {menu?.id && (
                                       <>
-                                        <button onClick={() => handlePublish(iso)} className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full border border-amber-200 hover:bg-amber-200 transition-colors">Publier</button>
+                                        <button onClick={() => handlePublish(iso)} className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full border border-amber-200 hover:bg-amber-200 transition-colors">{t("actions.publish")}</button>
                                         </>
                                     )}
                                   </>
@@ -427,7 +435,7 @@ export default function MenusPage({ params }: { params: Promise<{ locale: Locale
                       </tr>
                     </thead>
                     <tbody>
-                      {MEAL_ROWS.map((row, rowIdx) => (
+                      {mealRows.map((row, rowIdx) => (
                         <tr key={row.key} className={`border-b border-border last:border-b-0 ${rowIdx % 2 === 0 ? "bg-white" : "bg-muted/10"}`}>
                           <td className="px-4 py-3 font-semibold text-sm text-foreground border-r border-border">
                             {row.label}
@@ -440,13 +448,13 @@ export default function MenusPage({ params }: { params: Promise<{ locale: Locale
                               <td
                                 key={iso}
                                 onClick={() => openModal(iso)}
-                                title="Cliquer pour modifier le menu du jour"
+                                title={t("ui.clickToEditTitle")}
                                 className="px-3 py-3 border-r border-border last:border-r-0 text-xs align-middle min-w-[155px] cursor-pointer hover:bg-sky-50/60 transition-colors"
                               >
                                 {value ? (
                                   <span className="text-foreground">{value}</span>
                                 ) : (
-                                  <span className="text-muted-foreground/30">Cliquer pour saisir</span>
+                                  <span className="text-muted-foreground/30">{t("ui.clickToEnter")}</span>
                                 )}
                               </td>
                             );
@@ -473,17 +481,17 @@ export default function MenusPage({ params }: { params: Promise<{ locale: Locale
             <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/30">
               <div>
                 <h2 className="font-bold text-base text-foreground">
-                  {JOURS[weekDates.indexOf(dayModal.date)]} —{" "}
-                  {parseLocalDate(dayModal.date).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })}
+                  {t(`jours.${DAY_KEYS[weekDates.indexOf(dayModal.date)]}`)} —{" "}
+                  {parseLocalDate(dayModal.date).toLocaleDateString(dateLocale, { day: "2-digit", month: "long", year: "numeric" })}
                 </h2>
-                <p className="text-xs text-muted-foreground mt-0.5">Saisissez les 3 repas puis cliquez sur Enregistrer.</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{t("ui.modalEditHint")}</p>
               </div>
               <button onClick={closeModal} className="rounded-lg p-1.5 hover:bg-gray-100 transition-colors"><X className="w-4 h-4" /></button>
             </div>
 
             {/* Modal body */}
             <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1">
-              {MEAL_ROWS.map(row => (
+              {mealRows.map(row => (
                 <div key={row.key}>
                   <label className="block text-xs font-semibold text-foreground mb-1">{row.label}</label>
                   <Input
@@ -505,7 +513,7 @@ export default function MenusPage({ params }: { params: Promise<{ locale: Locale
                   className="w-4 h-4 accent-emerald-600"
                 />
                 <span className="text-sm font-medium text-gray-700">
-                  Publier immédiatement <span className="text-xs text-gray-400 font-normal">(visible aux parents)</span>
+                  {t("ui.publishNow")} <span className="text-xs text-gray-400 font-normal">{t("ui.publishHintParents")}</span>
                 </span>
               </label>
 
@@ -516,9 +524,9 @@ export default function MenusPage({ params }: { params: Promise<{ locale: Locale
 
             {/* Modal footer */}
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border bg-muted/20">
-              <Button variant="outline" onClick={closeModal} disabled={saving}>Annuler</Button>
+              <Button variant="outline" onClick={closeModal} disabled={saving}>{t("ui.cancel")}</Button>
               <Button onClick={saveModal} disabled={saving} className="bg-primary text-primary-foreground">
-                {saving ? "Enregistrement…" : "Enregistrer"}
+                {saving ? t("ui.saving") : t("ui.save")}
               </Button>
             </div>
           </div>
@@ -538,30 +546,29 @@ export default function MenusPage({ params }: { params: Promise<{ locale: Locale
                   <Trash2 className="w-5 h-5 text-destructive" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-base text-foreground">Supprimer la semaine ?</h3>
+                  <h3 className="font-bold text-base text-foreground">{t("ui.deleteWeekTitle")}</h3>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Vous allez supprimer tous les menus de la semaine du{" "}
-                    <span className="font-medium text-foreground">{formatWeekLabel(monday)}</span>.
+                    {t("ui.deleteWeekBody", { week: formatWeekLabel(monday, dateLocale) })}
                     {weekDates.some(d => allMenus[d]?.statut === "Publie") && (
                       <span className="block mt-1.5 text-amber-700 font-medium">
-                        ⚠️ Certains menus sont déjà publiés et visibles aux parents.
+                        {t("ui.deleteWeekWarning")}
                       </span>
                     )}
                   </p>
-                  <p className="text-xs text-muted-foreground mt-2">Cette action est irréversible.</p>
+                  <p className="text-xs text-muted-foreground mt-2">{t("ui.irreversible")}</p>
                 </div>
               </div>
             </div>
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border bg-muted/20">
               <Button variant="outline" onClick={() => setConfirmDelete(false)} disabled={deleting}>
-                Annuler
+                {t("ui.cancel")}
               </Button>
               <Button
                 onClick={handleDeleteWeek}
                 disabled={deleting}
                 className="bg-destructive hover:bg-destructive/90 text-white"
               >
-                {deleting ? "Suppression…" : "Oui, supprimer"}
+                {deleting ? t("ui.deleting") : t("ui.yesDelete")}
               </Button>
             </div>
           </div>
@@ -577,13 +584,13 @@ export default function MenusPage({ params }: { params: Promise<{ locale: Locale
           <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md overflow-hidden max-h-[92vh] flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/30">
               <div>
-                <h2 className="font-bold text-base text-foreground">Ajouter menu pour la semaine</h2>
-                <p className="text-xs text-muted-foreground mt-0.5">{formatWeekLabel(monday)} — appliqué aux jours vides uniquement</p>
+                <h2 className="font-bold text-base text-foreground">{t("ui.weekModalTitle")}</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">{t("ui.weekModalSubtitle", { week: formatWeekLabel(monday, dateLocale) })}</p>
               </div>
               <button onClick={() => setWeekModal(false)} className="rounded-lg p-1.5 hover:bg-gray-100 transition-colors"><X className="w-4 h-4" /></button>
             </div>
             <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1">
-              {MEAL_ROWS.map(row => (
+              {mealRows.map(row => (
                 <div key={row.key}>
                   <label className="block text-xs font-semibold text-foreground mb-1">{row.label}</label>
                   <Input
@@ -597,9 +604,9 @@ export default function MenusPage({ params }: { params: Promise<{ locale: Locale
               {weekErr && <p className="text-xs text-destructive bg-destructive/10 rounded-md px-3 py-2">{weekErr}</p>}
             </div>
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border bg-muted/20">
-              <Button variant="outline" onClick={() => setWeekModal(false)} disabled={weekSaving}>Annuler</Button>
+              <Button variant="outline" onClick={() => setWeekModal(false)} disabled={weekSaving}>{t("ui.cancel")}</Button>
               <Button onClick={saveWeekModal} disabled={weekSaving} className="bg-primary text-primary-foreground">
-                {weekSaving ? "Création…" : "Créer les menus"}
+                {weekSaving ? t("ui.creating") : t("ui.createMenus")}
               </Button>
             </div>
           </div>

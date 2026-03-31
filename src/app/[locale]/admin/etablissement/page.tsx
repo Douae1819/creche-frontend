@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { apiClient } from "@/lib/api";
 import type { Locale } from "@/lib/i18n/config";
+import { useTranslations } from "next-intl";
 import {
   Building2, Phone, Mail, Globe, Clock, Users, MapPin,
   Pencil, Check, X,
@@ -43,6 +44,7 @@ function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string;
 
 export default function EtablissementPage({ params }: { params: Promise<{ locale: Locale }> }) {
   const { locale: currentLocale } = use(params);
+  const t = useTranslations("admin.etablissement");
 
   const [etab,        setEtab]        = useState<EtablissementInfo>(EMPTY);
   const [form,        setForm]        = useState<EtablissementInfo>(EMPTY);
@@ -69,7 +71,7 @@ export default function EtablissementPage({ params }: { params: Promise<{ locale
         setEtab(info);
         setForm(info);
       })
-      .catch(() => setError("Impossible de charger les informations de l'établissement."))
+      .catch(() => setError(t("loadError")))
       .finally(() => setLoading(false));
   }, []);
 
@@ -92,10 +94,10 @@ export default function EtablissementPage({ params }: { params: Promise<{ locale
       };
       setEtab(saved);
       setEditing(false);
-      setSuccess("Informations enregistrées avec succès.");
+      setSuccess(t("success"));
       setTimeout(() => setSuccess(null), 3000);
     } catch {
-      setError("Erreur lors de la sauvegarde. Veuillez réessayer.");
+      setError(t("saveError"));
     } finally {
       setSaving(false);
     }
@@ -116,15 +118,15 @@ export default function EtablissementPage({ params }: { params: Promise<{ locale
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-foreground flex items-center gap-2">
                 <Building2 className="w-7 h-7 text-primary" />
-                Notre établissement
+                {t("title")}
               </h1>
               <p className="text-sm text-muted-foreground mt-1">
-                Informations de la crèche visibles dans l&apos;application.
+                {t("subtitle")}
               </p>
             </div>
             {!editing && (
               <Button onClick={openEdit} className="gap-2 flex-shrink-0">
-                <Pencil className="w-4 h-4" /> Modifier
+                <Pencil className="w-4 h-4" /> {t("edit")}
               </Button>
             )}
           </div>
@@ -144,21 +146,21 @@ export default function EtablissementPage({ params }: { params: Promise<{ locale
           {/* Card */}
           <Card className="p-6">
             {loading ? (
-              <p className="text-sm text-muted-foreground">Chargement…</p>
+              <p className="text-sm text-muted-foreground">{t("loading")}</p>
             ) : editing ? (
               /* ── Edit form ── */
               <div className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-foreground mb-1">Nom de l&apos;établissement</label>
+                    <label className="block text-xs font-medium text-foreground mb-1">{t("nameInstitution")}</label>
                     <Input
                       value={form.nom}
                       onChange={e => setForm(f => ({ ...f, nom: e.target.value }))}
-                      placeholder="Crèche PetitsPas"
+                      placeholder={t("placeholderName")}
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-foreground mb-1">Capacité d&apos;accueil</label>
+                    <label className="block text-xs font-medium text-foreground mb-1">{t("capacity")}</label>
                     <Input
                       type="number"
                       min={1}
@@ -169,56 +171,56 @@ export default function EtablissementPage({ params }: { params: Promise<{ locale
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-foreground mb-1">Adresse</label>
+                  <label className="block text-xs font-medium text-foreground mb-1">{t("address")}</label>
                   <Input
                     value={form.adresse}
                     onChange={e => setForm(f => ({ ...f, adresse: e.target.value }))}
-                    placeholder="12 rue des Enfants, Casablanca"
+                    placeholder={t("placeholderAddress")}
                   />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-foreground mb-1">Téléphone</label>
+                    <label className="block text-xs font-medium text-foreground mb-1">{t("phone")}</label>
                     <Input
                       value={form.telephone}
                       onChange={e => setForm(f => ({ ...f, telephone: e.target.value }))}
-                      placeholder="+212 522 000 000"
+                      placeholder={t("placeholderPhone")}
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-foreground mb-1">Email de contact</label>
+                    <label className="block text-xs font-medium text-foreground mb-1">{t("contactEmail")}</label>
                     <Input
                       type="email"
                       value={form.email}
                       onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                      placeholder="contact@petitspas.ma"
+                      placeholder={t("placeholderEmail")}
                     />
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-foreground mb-1">Site web</label>
+                    <label className="block text-xs font-medium text-foreground mb-1">{t("website")}</label>
                     <Input
                       value={form.siteWeb ?? ""}
                       onChange={e => setForm(f => ({ ...f, siteWeb: e.target.value }))}
-                      placeholder="https://petitspas.ma"
+                      placeholder={t("placeholderWebsite")}
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-foreground mb-1">Horaires d&apos;ouverture</label>
+                    <label className="block text-xs font-medium text-foreground mb-1">{t("openingHours")}</label>
                     <Input
                       value={form.horaires ?? ""}
                       onChange={e => setForm(f => ({ ...f, horaires: e.target.value }))}
-                      placeholder="Lun–Ven : 07h30 – 18h00"
+                      placeholder={t("placeholderHours")}
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-foreground mb-1">Description</label>
+                  <label className="block text-xs font-medium text-foreground mb-1">{t("description")}</label>
                   <textarea
                     value={form.description ?? ""}
                     onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                    placeholder="Courte description de la crèche…"
+                    placeholder={t("placeholderDescription")}
                     rows={3}
                     className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
                   />
@@ -227,10 +229,10 @@ export default function EtablissementPage({ params }: { params: Promise<{ locale
                 <div className="flex items-center gap-3 pt-2">
                   <Button onClick={save} disabled={saving} className="gap-1.5">
                     <Check className="w-3.5 h-3.5" />
-                    {saving ? "Enregistrement…" : "Enregistrer"}
+                    {saving ? t("saving") : t("save")}
                   </Button>
                   <Button variant="outline" onClick={cancelEdit} disabled={saving} className="gap-1.5">
-                    <X className="w-3.5 h-3.5" /> Annuler
+                    <X className="w-3.5 h-3.5" /> {t("cancel")}
                   </Button>
                 </div>
               </div>
@@ -241,7 +243,7 @@ export default function EtablissementPage({ params }: { params: Promise<{ locale
                   <div className="flex items-start gap-3 py-3 border-b border-border">
                     <Building2 className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
                     <div>
-                      <p className="text-xs text-muted-foreground mb-0.5">Nom</p>
+                      <p className="text-xs text-muted-foreground mb-0.5">{t("name")}</p>
                       <p className="text-base font-bold text-foreground">{etab.nom}</p>
                     </div>
                   </div>
@@ -252,21 +254,21 @@ export default function EtablissementPage({ params }: { params: Promise<{ locale
                     <p className="text-sm text-foreground">{etab.description}</p>
                   </div>
                 )}
-                <InfoRow icon={<MapPin   className="w-4 h-4" />} label="Adresse"           value={etab.adresse} />
-                <InfoRow icon={<Phone    className="w-4 h-4" />} label="Téléphone"         value={etab.telephone} />
-                <InfoRow icon={<Mail     className="w-4 h-4" />} label="Email"             value={etab.email} />
-                <InfoRow icon={<Globe    className="w-4 h-4" />} label="Site web"          value={etab.siteWeb} />
-                <InfoRow icon={<Clock    className="w-4 h-4" />} label="Horaires"          value={etab.horaires} />
-                <InfoRow icon={<Users    className="w-4 h-4" />} label="Capacité d'accueil" value={etab.capacite ? `${etab.capacite} enfants` : null} />
+                <InfoRow icon={<MapPin   className="w-4 h-4" />} label={t("address")}           value={etab.adresse} />
+                <InfoRow icon={<Phone    className="w-4 h-4" />} label={t("phone")}         value={etab.telephone} />
+                <InfoRow icon={<Mail     className="w-4 h-4" />} label={t("email")}             value={etab.email} />
+                <InfoRow icon={<Globe    className="w-4 h-4" />} label={t("website")}          value={etab.siteWeb} />
+                <InfoRow icon={<Clock    className="w-4 h-4" />} label={t("openingHours")}          value={etab.horaires} />
+                <InfoRow icon={<Users    className="w-4 h-4" />} label={t("capacityLabel")} value={etab.capacite ? t("capacityChildren", { count: etab.capacite }) : null} />
               </div>
             ) : (
               <div className="text-center py-8">
                 <Building2 className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
                 <p className="text-sm text-muted-foreground mb-4">
-                  Aucune information renseignée pour le moment.
+                  {t("emptyState")}
                 </p>
                 <Button onClick={openEdit} variant="outline" className="gap-2">
-                  <Pencil className="w-4 h-4" /> Renseigner les informations
+                  <Pencil className="w-4 h-4" /> {t("fillInfo")}
                 </Button>
               </div>
             )}

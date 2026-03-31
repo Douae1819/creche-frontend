@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import Cookies from "js-cookie";
+import { useAuthStore } from "@/modules/auth/store";
 import { LanguageSwitcher } from "@/components/ui/language-switcher";
 import {
   LayoutDashboard,
@@ -23,6 +24,7 @@ import {
   ScrollText,
   Building2,
 } from "lucide-react";
+import { withLocalePath } from "@/lib/i18n/locale-path";
 
 // Lit un claim du JWT depuis les cookies (côté client seulement)
 function readJwtClaim(claim: "role" | "email"): string {
@@ -48,18 +50,15 @@ export function SidebarNew({ currentLocale }: { currentLocale: string }) {
   const router = useRouter();
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [logoutConfirm, setLogoutConfirm] = useState(false);
   const t = useTranslations('sidebar');
+  const clearAuthStore = useAuthStore((s) => s.logout);
 
   // useSyncExternalStore : "" sur serveur, valeur du cookie sur client — sans useEffect
   const jwtRole  = useSyncExternalStore(noSubscribe, () => readJwtClaim("role"),  () => "");
   const jwtEmail = useSyncExternalStore(noSubscribe, () => readJwtClaim("email"), () => "");
   const isSuperAdmin = jwtRole === "SUPER_ADMIN";
   const adminEmail   = jwtEmail;
-
-  // DEBUG — à retirer après vérification
-  if (typeof window !== "undefined") {
-    console.log("[Sidebar] jwtRole:", jwtRole, "| isSuperAdmin:", isSuperAdmin);
-  }
 
   const sidebarItems: SidebarItem[] = [
     {
@@ -131,7 +130,7 @@ export function SidebarNew({ currentLocale }: { currentLocale: string }) {
   };
 
   const handleLogout = () => {
-    // Supprimer les cookies/token simples côté client
+    clearAuthStore(); // Purge Zustand state + auth_token cookie
     document.cookie = "token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
     document.cookie = "auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
     try {
@@ -140,7 +139,7 @@ export function SidebarNew({ currentLocale }: { currentLocale: string }) {
       // ignore
     }
 
-    const loginPath = `/${currentLocale}/auth/login-user`;
+    const loginPath = withLocalePath(currentLocale, "/auth/login-user");
     setMobileOpen(false);
     router.push(loginPath);
   };
@@ -167,12 +166,12 @@ export function SidebarNew({ currentLocale }: { currentLocale: string }) {
 
       <aside
         className={cn(
-          "w-64 bg-sidebar border-r border-sidebar-border h-screen overflow-hidden fixed left-0 top-0 pt-6 z-50",
-          "hidden md:block",
+          "w-64 bg-sidebar border-r border-sidebar-border flex flex-col overflow-hidden fixed left-0 top-0 bottom-0 z-50",
+          "hidden md:flex",
         )}
       >
-        <div className="px-6 mb-4">
-          <Link href="/" className="flex items-center gap-3">
+        <div className="flex-shrink-0 px-6 mb-4 pt-6">
+          <Link href={withLocalePath(currentLocale, "/admin")} className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg overflow-hidden flex items-center justify-center bg-transparent">
               <Image
                 src="/Group 13.svg"
@@ -195,7 +194,7 @@ export function SidebarNew({ currentLocale }: { currentLocale: string }) {
           )}
         </div>
 
-        <nav className="space-y-2 px-3 pb-32">
+        <nav className="flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-2 px-3 pb-3">
           {sidebarItems.map((item) => {
             const pathForActive = pathname.replace(/^\/[a-z]{2}(\/|$)/, "/");
             const isActive = pathForActive === item.href || (item.href !== "/admin" && pathForActive.startsWith(item.href + "/"));
@@ -206,7 +205,7 @@ export function SidebarNew({ currentLocale }: { currentLocale: string }) {
               return (
                 <Link
                   key={item.labelKey}
-                  href={item.href}
+                  href={withLocalePath(currentLocale, item.href)}
                   className={cn(
                     "w-full flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium transition-all",
                     isActive
@@ -250,7 +249,7 @@ export function SidebarNew({ currentLocale }: { currentLocale: string }) {
                       return (
                         <Link
                           key={subitem.href}
-                          href={subitem.href}
+                          href={withLocalePath(currentLocale, subitem.href)}
                           className={cn(
                             "flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-all",
                             isSubActive
@@ -270,12 +269,12 @@ export function SidebarNew({ currentLocale }: { currentLocale: string }) {
           })}
         </nav>
 
-        <div className="absolute bottom-0 left-0 right-0 border-t border-sidebar-border p-2 space-y-1 bg-sidebar">
+        <div className="relative z-10 flex-shrink-0 border-t border-sidebar-border p-2 space-y-1 bg-sidebar pb-[max(0.5rem,env(safe-area-inset-bottom))]">
           <div className="px-4 py-2">
-            <LanguageSwitcher currentLocale={currentLocale as any} />
+            <LanguageSwitcher currentLocale={currentLocale as any} variant="toggle" />
           </div>
           <button
-            onClick={handleLogout}
+            onClick={() => setLogoutConfirm(true)}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm text-destructive hover:bg-destructive/10 transition-all"
           >
             <LogOut className="w-5 h-5" />
@@ -286,13 +285,13 @@ export function SidebarNew({ currentLocale }: { currentLocale: string }) {
 
       <aside
         className={cn(
-          "md:hidden w-[85vw] max-w-[20rem] bg-sidebar border-r border-sidebar-border h-screen overflow-hidden fixed left-0 top-0 pt-[calc(env(safe-area-inset-top)+1.5rem)] z-[60] transition-transform duration-200 ease-in-out",
+          "md:hidden w-[85vw] max-w-[20rem] bg-sidebar border-r border-sidebar-border flex flex-col overflow-hidden fixed left-0 top-0 bottom-0 pt-[calc(env(safe-area-inset-top)+1.5rem)] z-[60] transition-transform duration-200 ease-in-out",
           mobileOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full",
         )}
       >
-        <div className="px-6 mb-6 flex items-start justify-between gap-3">
+        <div className="flex-shrink-0 px-6 mb-4 flex items-start justify-between gap-3">
           <Link
-            href="/"
+            href={withLocalePath(currentLocale, "/admin")}
             className="flex items-center gap-3"
             onClick={() => setMobileOpen(false)}
           >
@@ -324,7 +323,7 @@ export function SidebarNew({ currentLocale }: { currentLocale: string }) {
           </button>
         </div>
 
-        <nav className="space-y-2 px-3 pb-32">
+        <nav className="flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-2 px-3 pb-3">
           {sidebarItems.map((item) => {
             const pathForActive = pathname.replace(/^\/[a-z]{2}(\/|$)/, "/");
             const isActive = pathForActive === item.href || (item.href !== "/admin" && pathForActive.startsWith(item.href + "/"));
@@ -335,7 +334,7 @@ export function SidebarNew({ currentLocale }: { currentLocale: string }) {
               return (
                 <Link
                   key={item.labelKey}
-                  href={item.href}
+                  href={withLocalePath(currentLocale, item.href)}
                   onClick={() => setMobileOpen(false)}
                   className={cn(
                     "w-full flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium transition-all",
@@ -380,7 +379,7 @@ export function SidebarNew({ currentLocale }: { currentLocale: string }) {
                       return (
                         <Link
                           key={subitem.href}
-                          href={subitem.href}
+                          href={withLocalePath(currentLocale, subitem.href)}
                           onClick={() => setMobileOpen(false)}
                           className={cn(
                             "flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-all",
@@ -401,12 +400,12 @@ export function SidebarNew({ currentLocale }: { currentLocale: string }) {
           })}
         </nav>
 
-        <div className="absolute bottom-0 left-0 right-0 border-t border-sidebar-border p-4 space-y-2 bg-sidebar">
+        <div className="flex-shrink-0 border-t border-sidebar-border p-4 space-y-2 bg-sidebar pb-[calc(env(safe-area-inset-bottom)+0.5rem)]">
           <div className="px-4 py-2">
-            <LanguageSwitcher currentLocale={currentLocale as any} />
+            <LanguageSwitcher currentLocale={currentLocale as any} variant="toggle" />
           </div>
           <button
-            onClick={handleLogout}
+            onClick={() => { setMobileOpen(false); setLogoutConfirm(true); }}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm text-destructive hover:bg-destructive/10 transition-all"
           >
             <LogOut className="w-5 h-5" />
@@ -414,6 +413,35 @@ export function SidebarNew({ currentLocale }: { currentLocale: string }) {
           </button>
         </div>
       </aside>
+
+      {/* Logout confirmation dialog */}
+      {logoutConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100">
+                <LogOut className="w-5 h-5 text-destructive" />
+              </div>
+              <h2 className="text-base font-semibold text-gray-900">{t('logoutConfirmTitle')}</h2>
+            </div>
+            <p className="text-sm text-gray-600">{t('logoutConfirmMessage')}</p>
+            <div className="flex gap-3 pt-1">
+              <button
+                onClick={handleLogout}
+                className="flex-1 rounded-lg bg-destructive px-4 py-2 text-sm font-semibold text-white hover:bg-destructive/90 transition-colors"
+              >
+                {t('logoutConfirmYes')}
+              </button>
+              <button
+                onClick={() => setLogoutConfirm(false)}
+                className="flex-1 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                {t('logoutConfirmNo')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

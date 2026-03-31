@@ -1,5 +1,7 @@
 import ky, { HTTPError } from 'ky';
+import Cookies from 'js-cookie';
 import { useAuthStore } from '@/modules/auth/store';
+import { apiClient } from '@/lib/api';
 
 /**
  * Instance Ky configurée avec:
@@ -12,8 +14,10 @@ export const api = ky.create({
   hooks: {
     beforeRequest: [
       (request) => {
-        // Injecter le JWT token
-        const token = useAuthStore.getState().token;
+        const token =
+          Cookies.get('auth_token') ||
+          Cookies.get('token') ||
+          useAuthStore.getState().token;
         if (token) {
           request.headers.set('Authorization', `Bearer ${token}`);
         }
@@ -21,8 +25,22 @@ export const api = ky.create({
     ],
     afterResponse: [
       async (request, options, response) => {
-        // Gérer les erreurs 401 (non authentifié)
         if (response.status === 401) {
+          const opts = options as { _kyRefresh?: boolean };
+          if (!opts._kyRefresh) {
+            const refreshed = await apiClient.refreshSession();
+            if (refreshed) {
+              opts._kyRefresh = true;
+              const token =
+                Cookies.get('auth_token') ||
+                Cookies.get('token') ||
+                useAuthStore.getState().token;
+              if (token) {
+                request.headers.set('Authorization', `Bearer ${token}`);
+              }
+              return ky(request);
+            }
+          }
           useAuthStore.getState().logout();
           if (typeof window !== 'undefined') {
             const pathname = window.location.pathname || '';

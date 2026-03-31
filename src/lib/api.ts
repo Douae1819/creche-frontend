@@ -1,10 +1,14 @@
-import axios, { AxiosInstance, AxiosError } from 'axios';
+import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import Cookies from 'js-cookie';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
 
+type RetryConfig = InternalAxiosRequestConfig & { _retry?: boolean };
+
 class ApiClient {
   private client: AxiosInstance;
+  private readonly refreshClient: AxiosInstance;
+  private refreshAccessPromise: Promise<string | null> | null = null;
 
   constructor() {
     this.client = axios.create({
@@ -14,29 +18,118 @@ class ApiClient {
       },
     });
 
-    // Intercepteur pour ajouter le token
+    this.refreshClient = axios.create({
+      baseURL: API_BASE_URL,
+      headers: { 'Content-Type': 'application/json' },
+    });
+
     this.client.interceptors.request.use((config) => {
-      const token = Cookies.get('token');
+      const token = Cookies.get('token') || Cookies.get('auth_token');
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
       return config;
     });
 
-    // Intercepteur pour gérer les erreurs
     this.client.interceptors.response.use(
       (response) => response,
-      (error: AxiosError) => {
-        if (error.response?.status === 401) {
-          // Token expiré, rediriger vers login
-          Cookies.remove('token');
+      async (error: AxiosError) => {
+        const originalRequest = error.config as RetryConfig | undefined;
+        const status = error.response?.status;
+
+        if (status !== 401 || !originalRequest) {
+          return Promise.reject(error);
+        }
+
+        const url = originalRequest.url ?? '';
+        if (
+          url.includes('/auth/login') ||
+          url.includes('/auth/login-user') ||
+          url.includes('/auth/refresh')
+        ) {
+          this.clearAuthCookies();
           if (typeof window !== 'undefined') {
             window.location.href = '/auth/login-user';
           }
+          return Promise.reject(error);
         }
-        return Promise.reject(error);
-      }
+
+        if (originalRequest._retry) {
+          this.clearAuthCookies();
+          if (typeof window !== 'undefined') {
+            window.location.href = '/auth/login-user';
+          }
+          return Promise.reject(error);
+        }
+
+        originalRequest._retry = true;
+        const newAccess = await this.tryRefreshAccessToken();
+        if (!newAccess) {
+          this.clearAuthCookies();
+          if (typeof window !== 'undefined') {
+            window.location.href = '/auth/login-user';
+          }
+          return Promise.reject(error);
+        }
+
+        originalRequest.headers = originalRequest.headers ?? {};
+        originalRequest.headers.Authorization = `Bearer ${newAccess}`;
+        return this.client.request(originalRequest);
+      },
     );
+  }
+
+  private clearAuthCookies() {
+    Cookies.remove('token');
+    Cookies.remove('auth_token');
+    Cookies.remove('refresh_token');
+  }
+
+  /** Une seule requête refresh si plusieurs 401 simultanés */
+  /** Exposé pour clients alternatifs (ex. ky) : tente un refresh, met à jour les cookies. */
+  async refreshSession(): Promise<boolean> {
+    const token = await this.tryRefreshAccessToken();
+    return token !== null;
+  }
+
+  private tryRefreshAccessToken(): Promise<string | null> {
+    if (!this.refreshAccessPromise) {
+      this.refreshAccessPromise = (async () => {
+        try {
+          const refresh = Cookies.get('refresh_token');
+          if (!refresh) return null;
+          const { data } = await this.refreshClient.post<{
+            accessToken: string;
+          }>('/auth/refresh', { refreshToken: refresh });
+          const at = data?.accessToken;
+          if (!at) return null;
+          Cookies.set('token', at, { expires: 7 });
+          Cookies.set('auth_token', at, { expires: 7 });
+          return at;
+        } catch {
+          return null;
+        }
+      })().finally(() => {
+        this.refreshAccessPromise = null;
+      });
+    }
+    return this.refreshAccessPromise;
+  }
+
+  async logout() {
+    const token = Cookies.get('token') || Cookies.get('auth_token');
+    const refresh = Cookies.get('refresh_token');
+    try {
+      if (token) {
+        await this.client.post(
+          '/auth/logout',
+          refresh ? { refreshToken: refresh } : {},
+        );
+      }
+    } catch {
+      /* ignore */
+    }
+    this.clearAuthCookies();
   }
 
   // ---- ADMIN DASHBOARD ----
@@ -325,8 +418,10 @@ class ApiClient {
     return this.client.get(`/parent/enfants/${enfantId}/resume`, { params: { date } });
   }
 
-  getClassJournal(classeId: string) {
-    return this.client.get(`/parent/classes/${classeId}/journal/latest`);
+  getClassJournal(classeId: string, date?: string) {
+    return this.client.get(`/parent/classes/${classeId}/journal/latest`, {
+      params: { ...(date ? { date } : {}) },
+    });
   }
 
   getClassMenu(classeId: string, date?: string) {

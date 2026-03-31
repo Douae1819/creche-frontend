@@ -10,6 +10,7 @@ export default function ChildAttendancePage() {
   const router = useRouter()
   const params = useParams()
   const childId = params.id
+  const locale = (params?.locale as string) ?? "fr"
 
   // Mock child data
   const [formData, setFormData] = useState({
@@ -44,14 +45,14 @@ export default function ChildAttendancePage() {
   const handleSubmit = () => {
     // Save to API
     console.log("[v0] Submitting attendance data:", { formData, milestones })
-    router.push("/teacher")
+    router.push(`/${locale}/teacher`)
   }
 
   return (
     <div className="space-y-6 max-w-4xl">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <Link href="/teacher">
+        <Link href={`/${locale}/teacher`}>
           <Button variant="outline" className="rounded-lg bg-transparent">
             ← Retour
           </Button>
@@ -228,7 +229,7 @@ export default function ChildAttendancePage() {
 
       {/* Action Buttons */}
       <div className="flex gap-3 justify-end">
-        <Link href="/teacher">
+        <Link href={`/${locale}/teacher`}>
           <Button variant="outline" className="rounded-lg bg-transparent">
             Annuler
           </Button>

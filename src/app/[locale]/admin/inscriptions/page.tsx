@@ -9,6 +9,7 @@ import { Search, Eye } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Locale } from "@/lib/i18n/config";
+import { withLocalePath } from "@/lib/i18n/locale-path";
 import { SidebarNew } from "@/components/layout/sidebar-new";
 import { apiClient } from "@/lib/api";
 
@@ -17,10 +18,24 @@ type InscriptionItem = {
   childName: string;
   parentName: string;
   email: string;
-  status: string;
   statutCode: "CANDIDATURE" | "EN_COURS" | "ACTIF" | "REJETEE" | null;
   createdAt: string;
 };
+
+function badgeClassForStatus(code: InscriptionItem["statutCode"]): string {
+  switch (code) {
+    case "ACTIF":
+      return "bg-green-100 text-green-700";
+    case "CANDIDATURE":
+      return "bg-yellow-100 text-yellow-700";
+    case "EN_COURS":
+      return "bg-blue-100 text-blue-700";
+    case "REJETEE":
+      return "bg-red-100 text-red-700";
+    default:
+      return "bg-gray-100 text-gray-700";
+  }
+}
 
 export default function InscriptionsPage({ params }: { params: Promise<{ locale: Locale }> }) {
   const resolvedParams = use(params);
@@ -37,31 +52,27 @@ export default function InscriptionsPage({ params }: { params: Promise<{ locale:
       await apiClient.acceptAdminInscription(id);
       setInscriptions((prev) =>
         prev.map((insc) =>
-          insc.id === id
-            ? { ...insc, statutCode: 'ACTIF', status: 'Accepté' }
-            : insc,
+          insc.id === id ? { ...insc, statutCode: "ACTIF" } : insc,
         ),
       );
     } catch (err) {
-      console.error('[Admin/Inscriptions] Error accepting inscription', err);
-      alert("Erreur lors de l'acceptation de l'inscription.");
+      console.error("[Admin/Inscriptions] Error accepting inscription", err);
+      alert(t("errors.accept"));
     }
   };
 
   const handleReject = async (id: string) => {
-    const raison = prompt('Raison du rejet (optionnelle) :') ?? undefined;
+    const raison = prompt(t("rejectPrompt")) ?? undefined;
     try {
       await apiClient.rejectAdminInscription(id, raison);
       setInscriptions((prev) =>
         prev.map((insc) =>
-          insc.id === id
-            ? { ...insc, statutCode: 'REJETEE', status: 'Refusé' }
-            : insc,
+          insc.id === id ? { ...insc, statutCode: "REJETEE" } : insc,
         ),
       );
     } catch (err) {
-      console.error('[Admin/Inscriptions] Error rejecting inscription', err);
-      alert("Erreur lors du rejet de l'inscription.");
+      console.error("[Admin/Inscriptions] Error rejecting inscription", err);
+      alert(t("errors.reject"));
     }
   };
 
@@ -84,19 +95,12 @@ export default function InscriptionsPage({ params }: { params: Promise<{ locale:
           const email = firstParent?.email ?? "—";
 
           const statut: InscriptionItem["statutCode"] = insc.statut ?? null;
-          let statusLabel = "";
-          if (statut === "CANDIDATURE") statusLabel = "En revue";
-          else if (statut === "EN_COURS") statusLabel = "En cours";
-          else if (statut === "ACTIF") statusLabel = "Accepté";
-          else if (statut === "REJETEE") statusLabel = "Refusé";
-          else statusLabel = "Inconnu";
 
           return {
             id: insc.id,
             childName,
             parentName,
             email,
-            status: statusLabel,
             statutCode: statut,
             createdAt: insc.createdAt,
           };
@@ -108,7 +112,7 @@ export default function InscriptionsPage({ params }: { params: Promise<{ locale:
       } catch (err) {
         console.error("[Admin/Inscriptions] Error loading inscriptions", err);
         if (!cancelled) {
-          setError("Impossible de charger les inscriptions.");
+          setError(t("errors.load"));
         }
       } finally {
         if (!cancelled) {
@@ -122,7 +126,20 @@ export default function InscriptionsPage({ params }: { params: Promise<{ locale:
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [currentLocale]);
+
+  const labelForStatus = (code: InscriptionItem["statutCode"]) => {
+    if (!code) return t("status.UNKNOWN");
+    const key =
+      code === "CANDIDATURE"
+        ? "status.CANDIDATURE"
+        : code === "EN_COURS"
+          ? "status.EN_COURS"
+          : code === "ACTIF"
+            ? "status.ACTIF"
+            : "status.REJETEE";
+    return t(key);
+  };
 
   const filtered = inscriptions.filter((insc) => {
     const matchesSearch =
@@ -137,22 +154,20 @@ export default function InscriptionsPage({ params }: { params: Promise<{ locale:
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
-      {/* Sidebar */}
       <SidebarNew currentLocale={currentLocale} />
-      
-      {/* Main Content */}
+
       <div className="flex-1 md:ml-64 p-4 md:p-8 pt-16 md:pt-8">
         <div className="space-y-6">
           <div>
-            <h1 className="text-3xl font-bold text-foreground mb-2">{t('title')}</h1>
-            <p className="text-muted-foreground">{inscriptions.length} inscriptions</p>
+            <h1 className="text-3xl font-bold text-foreground mb-2">{t("title")}</h1>
+            <p className="text-muted-foreground">{t("countLabel", { count: inscriptions.length })}</p>
           </div>
 
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
             <div className="relative md:w-72">
               <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder={t('searchPlaceholder')}
+                placeholder={t("searchPlaceholder")}
                 className="pl-10"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -166,7 +181,7 @@ export default function InscriptionsPage({ params }: { params: Promise<{ locale:
                 className="rounded-full px-4"
                 onClick={() => setStatusFilter(null)}
               >
-                Tous
+                {t("filters.all")}
               </Button>
               <Button
                 variant={statusFilter === "CANDIDATURE" ? "default" : "outline"}
@@ -174,7 +189,7 @@ export default function InscriptionsPage({ params }: { params: Promise<{ locale:
                 className="rounded-full px-4"
                 onClick={() => setStatusFilter("CANDIDATURE")}
               >
-                En revue
+                {t("filters.review")}
               </Button>
               <Button
                 variant={statusFilter === "EN_COURS" ? "default" : "outline"}
@@ -182,7 +197,7 @@ export default function InscriptionsPage({ params }: { params: Promise<{ locale:
                 className="rounded-full px-4"
                 onClick={() => setStatusFilter("EN_COURS")}
               >
-                En cours
+                {t("filters.inProgress")}
               </Button>
               <Button
                 variant={statusFilter === "ACTIF" ? "default" : "outline"}
@@ -190,7 +205,7 @@ export default function InscriptionsPage({ params }: { params: Promise<{ locale:
                 className="rounded-full px-4"
                 onClick={() => setStatusFilter("ACTIF")}
               >
-                Accepté
+                {t("filters.accepted")}
               </Button>
               <Button
                 variant={statusFilter === "REJETEE" ? "default" : "outline"}
@@ -198,19 +213,17 @@ export default function InscriptionsPage({ params }: { params: Promise<{ locale:
                 className="rounded-full px-4"
                 onClick={() => setStatusFilter("REJETEE")}
               >
-                Refusé
+                {t("filters.rejected")}
               </Button>
             </div>
           </div>
-          {error && (
-            <p className="mb-4 text-sm text-destructive">{error}</p>
-          )}
+          {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {loading ? (
-              <p className="text-sm text-muted-foreground">Chargement des inscriptions…</p>
+              <p className="text-sm text-muted-foreground">{t("loading")}</p>
             ) : filtered.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Aucune inscription trouvée.</p>
+              <p className="text-sm text-muted-foreground">{t("empty")}</p>
             ) : (
               filtered.map((insc) => (
                 <Card key={insc.id} className="p-6 border-2 border-border/50">
@@ -219,55 +232,37 @@ export default function InscriptionsPage({ params }: { params: Promise<{ locale:
                       <div>
                         <h3 className="font-bold text-lg text-foreground">{insc.childName}</h3>
                         <p className="text-sm text-muted-foreground">
-                          {new Date(insc.createdAt).toLocaleDateString(currentLocale)}
+                          {new Date(insc.createdAt).toLocaleDateString(currentLocale === "ar" ? "ar-MA" : "fr-FR")}
                         </p>
                       </div>
-                      <Badge
-                        className={
-                          insc.status === "Accepté"
-                            ? "bg-green-100 text-green-700"
-                            : insc.status === "En revue"
-                            ? "bg-yellow-100 text-yellow-700"
-                            : insc.status === "En cours"
-                            ? "bg-blue-100 text-blue-700"
-                            : insc.status === "Refusé"
-                            ? "bg-red-100 text-red-700"
-                            : "bg-gray-100 text-gray-700"
-                        }
-                      >
-                        {insc.status}
-                      </Badge>
+                      <Badge className={badgeClassForStatus(insc.statutCode)}>{labelForStatus(insc.statutCode)}</Badge>
                     </div>
                   </div>
                   <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
+                    <div className="flex justify-between gap-2">
                       <span className="text-muted-foreground">{t("parent")}:</span>
-                      <span className="font-medium">{insc.parentName}</span>
+                      <span className="font-medium text-end">{insc.parentName}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Email:</span>
-                      <span className="font-medium">{insc.email}</span>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-muted-foreground">{t("email")}:</span>
+                      <span className="font-medium text-end break-all">{insc.email}</span>
                     </div>
                   </div>
-                  <div className="mt-4 flex gap-2">
-                    <Link href={`/${currentLocale}/admin/inscriptions/${insc.id}`}>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="flex items-center gap-2 bg-transparent"
-                      >
+                  <div className="mt-4 flex gap-2 flex-wrap">
+                    <Link href={withLocalePath(currentLocale, `/admin/inscriptions/${insc.id}`)}>
+                      <Button size="sm" variant="outline" className="flex items-center gap-2 bg-transparent">
                         <Eye className="w-4 h-4" />
                         {t("viewDetails")}
                       </Button>
                     </Link>
-                    {insc.statutCode === 'CANDIDATURE' || insc.statutCode === 'EN_COURS' ? (
+                    {insc.statutCode === "CANDIDATURE" || insc.statutCode === "EN_COURS" ? (
                       <>
                         <Button
                           size="sm"
                           className="bg-green-600 text-white hover:bg-green-700"
                           onClick={() => handleAccept(insc.id)}
                         >
-                          Accepter
+                          {t("actions.accept")}
                         </Button>
                         <Button
                           size="sm"
@@ -275,7 +270,7 @@ export default function InscriptionsPage({ params }: { params: Promise<{ locale:
                           className="border-red-500 text-red-600 hover:bg-red-50"
                           onClick={() => handleReject(insc.id)}
                         >
-                          Rejeter
+                          {t("actions.reject")}
                         </Button>
                       </>
                     ) : null}
@@ -289,4 +284,3 @@ export default function InscriptionsPage({ params }: { params: Promise<{ locale:
     </div>
   );
 }
-                                

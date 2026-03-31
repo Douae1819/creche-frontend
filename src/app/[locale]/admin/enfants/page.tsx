@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search, Eye, Trash2, Edit2, X } from "lucide-react";
+import { Search, Eye, Edit2, X, Archive } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Locale } from "@/lib/i18n/config";
 import { SidebarNew } from "@/components/layout/sidebar-new";
@@ -49,6 +49,24 @@ type EnfantItem = {
   }>;
 };
 
+/** Présence du jour : même clé UTC que le backend (après fix UTC) ; repli si l’API ne renvoie qu’un ligne « jour courant ». */
+function resolveTodayPresence(presences: any[] | undefined, todayUtc: string): any | undefined {
+  if (!presences?.length) return undefined;
+  const byIso = presences.find((presence: any) => {
+    try {
+      if (!presence.date) return false;
+      const dateObj = new Date(presence.date);
+      if (isNaN(dateObj.getTime())) return false;
+      return dateObj.toISOString().split("T")[0] === todayUtc;
+    } catch {
+      return false;
+    }
+  });
+  if (byIso) return byIso;
+  if (presences.length === 1) return presences[0];
+  return undefined;
+}
+
 export default function EnfantsPage({ params }: { params: Promise<{ locale: Locale }> }) {
   const resolvedParams = use(params);
   const currentLocale = resolvedParams.locale;
@@ -69,6 +87,7 @@ export default function EnfantsPage({ params }: { params: Promise<{ locale: Loca
   const [editTarget, setEditTarget] = useState<EnfantItem | null>(null);
   const [editForm, setEditForm] = useState({ prenom: "", nom: "", genre: "", classeId: "", remarques: "" });
   const [editSaving, setEditSaving] = useState(false);
+  const [archiveTarget, setArchiveTarget] = useState<{ id: string; name: string } | null>(null);
   const [formData, setFormData] = useState({
     prenom: "",
     nom: "",
@@ -88,7 +107,7 @@ export default function EnfantsPage({ params }: { params: Promise<{ locale: Loca
         setError(null);
 
         const res = await apiClient.listChildren(1, 50);
-        const items = res.data.items ?? [];
+        const items = res.data.items ?? res.data.data ?? [];
 
         const mapped: EnfantItem[] = items.map((enfant: any) => {
           const fullName = `${enfant.prenom} ${enfant.nom}`.trim();
@@ -105,19 +124,7 @@ export default function EnfantsPage({ params }: { params: Promise<{ locale: Loca
           
           // Si l'enfant a des présences, chercher celle d'aujourd'hui
           if (enfant.presences && Array.isArray(enfant.presences)) {
-            const todayPresence = enfant.presences.find((presence: any) => {
-              try {
-                if (!presence.date) return false;
-                const dateObj = new Date(presence.date);
-                if (isNaN(dateObj.getTime())) return false;
-                const presenceDate = dateObj.toISOString().split('T')[0];
-                return presenceDate === today;
-              } catch (e) {
-                console.warn('Invalid date in presence:', presence.date, e);
-                return false;
-              }
-            });
-            
+            const todayPresence = resolveTodayPresence(enfant.presences, today);
             if (todayPresence) {
               if (todayPresence.statut === "Present") {
                 todayStatus = "Présent";
@@ -326,7 +333,7 @@ export default function EnfantsPage({ params }: { params: Promise<{ locale: Loca
 
       // Après création/mise à jour, on recharge la liste
       const res = await apiClient.listChildren(1, 50);
-      const items = res.data.items ?? [];
+      const items = res.data.items ?? res.data.data ?? [];
       const mapped: EnfantItem[] = items.map((enfant: any) => {
         const fullName = `${enfant.prenom} ${enfant.nom}`.trim();
         const group = enfant.classe?.nom ?? "—";
@@ -340,19 +347,7 @@ export default function EnfantsPage({ params }: { params: Promise<{ locale: Loca
         let todayStatus = "Non défini";
         
         if (enfant.presences && Array.isArray(enfant.presences)) {
-          const todayPresence = enfant.presences.find((presence: any) => {
-            try {
-              if (!presence.date) return false;
-              const dateObj = new Date(presence.date);
-              if (isNaN(dateObj.getTime())) return false;
-              const presenceDate = dateObj.toISOString().split('T')[0];
-              return presenceDate === today;
-            } catch (e) {
-              console.warn('Invalid date in presence:', presence.date, e);
-              return false;
-            }
-          });
-          
+          const todayPresence = resolveTodayPresence(enfant.presences, today);
           if (todayPresence) {
             if (todayPresence.statut === "Present") todayStatus = "Présent";
             else if (todayPresence.statut === "Absent") todayStatus = "Absent";
@@ -428,15 +423,16 @@ export default function EnfantsPage({ params }: { params: Promise<{ locale: Loca
       setEditSaving(false);
     }
   };
-  const handleDelete = async (id: string) => {
-    if (!confirm("Supprimer cet enfant ?")) return;
-
+  const handleArchiveConfirm = async () => {
+    if (!archiveTarget) return;
     try {
-      await apiClient.deleteChild(id);
-      setChildren((prev) => prev.filter((c) => c.id !== id));
+      await apiClient.deleteChild(archiveTarget.id);
+      setChildren((prev) => prev.filter((c) => c.id !== archiveTarget.id));
     } catch (err) {
-      console.error("[Admin/Enfants] Error deleting child", err);
-      alert("Erreur lors de la suppression de l'enfant.");
+      console.error("[Admin/Enfants] Error archiving child", err);
+      alert("Erreur lors de l'archivage de l'enfant.");
+    } finally {
+      setArchiveTarget(null);
     }
   };
 
@@ -563,8 +559,8 @@ export default function EnfantsPage({ params }: { params: Promise<{ locale: Loca
                         <Link href={`/${currentLocale}/admin/enfants/${child.id}`} className="inline-flex items-center gap-1 px-2 py-1 border rounded text-xs hover:bg-muted">
                           <Eye className="w-3 h-3" /> Voir
                         </Link>
-                        <Button size="icon" variant="outline" className="h-7 w-7 text-destructive hover:bg-destructive/10" onClick={() => handleDelete(child.id)} aria-label="Supprimer">
-                          <Trash2 className="w-3 h-3" />
+                        <Button size="icon" variant="outline" className="h-7 w-7 text-amber-600 hover:bg-amber-50" onClick={() => setArchiveTarget({ id: child.id, name: child.name })} aria-label="Archiver">
+                          <Archive className="w-3 h-3" />
                         </Button>
                       </div>
                     </div>
@@ -693,11 +689,11 @@ export default function EnfantsPage({ params }: { params: Promise<{ locale: Loca
                             <Button
                               size="icon"
                               variant="outline"
-                              className="text-destructive hover:bg-destructive/10"
-                              onClick={() => handleDelete(child.id)}
-                              aria-label={t('delete')}
+                              className="text-amber-600 hover:bg-amber-50"
+                              onClick={() => setArchiveTarget({ id: child.id, name: child.name })}
+                              aria-label="Archiver"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Archive className="w-4 h-4" />
                             </Button>
                           </td>
                         </tr>
@@ -852,6 +848,39 @@ export default function EnfantsPage({ params }: { params: Promise<{ locale: Loca
                 </Button>
                 <Button variant="outline" onClick={() => setEditModalOpen(false)} disabled={editSaving}>Annuler</Button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal confirmation archivage */}
+      {archiveTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-lg shadow-lg w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100">
+                <Archive className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <h2 className="text-base font-semibold">Archiver cet enfant ?</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">{archiveTarget.name}</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-600">
+              Les données seront conservées conformément à la Loi 09-08 (conservation ≥ 5 ans).
+              L&apos;enfant n&apos;apparaîtra plus dans les listes actives.
+            </p>
+            <div className="flex gap-3 pt-1">
+              <Button
+                variant="outline"
+                className="flex-1 border-amber-300 text-amber-700 hover:bg-amber-50"
+                onClick={handleArchiveConfirm}
+              >
+                Confirmer l&apos;archivage
+              </Button>
+              <Button variant="outline" className="flex-1" onClick={() => setArchiveTarget(null)}>
+                Annuler
+              </Button>
             </div>
           </div>
         </div>

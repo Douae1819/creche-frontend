@@ -13,12 +13,14 @@ import { useTranslations } from "next-intl"
 import { Locale } from "@/lib/i18n/config"
 import { Mail, Lock, LogIn } from "lucide-react"
 import { apiClient } from "@/lib/api"
+import { useAuthStore } from "@/modules/auth/store"
 
 export default function Home({ params }: { params: Promise<{ locale: Locale }> }) {
   const resolvedParams = use(params)
   const currentLocale = resolvedParams.locale
   const t = useTranslations("home")
   const router = useRouter()
+  const clearAuthStore = useAuthStore((s) => s.logout)
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -35,9 +37,14 @@ export default function Home({ params }: { params: Promise<{ locale: Locale }> }
       try {
         const { data } = await apiClient.loginAdmin(emailValue, password)
 
-        const { accessToken } = data as { accessToken: string }
+        const { accessToken, refreshToken } = data as {
+          accessToken: string
+          refreshToken?: string
+        }
+        clearAuthStore() // Purge previous session from localStorage
         Cookies.set("token", accessToken, { expires: 7 })
         Cookies.set("auth_token", accessToken, { expires: 7 })
+        if (refreshToken) Cookies.set("refresh_token", refreshToken, { expires: 7 })
 
         router.push(`/${currentLocale}/admin`)
         return
@@ -53,11 +60,17 @@ export default function Home({ params }: { params: Promise<{ locale: Locale }> }
       // 2) Essayer le loginUser (parent / enseignant / admin via cet endpoint)
       const { data } = await apiClient.loginUser(emailValue, password)
 
-      const { accessToken, role } = data as { accessToken: string; role?: string }
+      const { accessToken, refreshToken, role } = data as {
+        accessToken: string
+        refreshToken?: string
+        role?: string
+      }
       const normalizedRole = String(role || "").toUpperCase()
 
+      clearAuthStore() // Purge previous session from localStorage
       Cookies.set("token", accessToken, { expires: 7 })
       Cookies.set("auth_token", accessToken, { expires: 7 })
+      if (refreshToken) Cookies.set("refresh_token", refreshToken, { expires: 7 })
 
       // Redirection selon le rôle
       if (normalizedRole === "PARENT") {

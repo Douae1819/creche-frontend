@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/providers/i18n-provider";
 import { LanguageSwitcher } from "@/components/ui/language-switcher";
@@ -15,6 +15,10 @@ import {
   Settings,
   LogOut,
   UtensilsCrossed,
+  Calendar,
+  ClipboardList,
+  ScrollText,
+  Building2,
   Menu,
   X,
 } from "lucide-react";
@@ -48,26 +52,73 @@ const sidebarItems: SidebarItem[] = [
     icon: <Users className="w-5 h-5" />,
   },
   {
+    label: "Enseignants & classes",
+    href: "/admin/teachers",
+    icon: <Users className="w-5 h-5" />,
+  },
+  {
     label: "Menu enfant",
     href: "/admin/menus",
     icon: <UtensilsCrossed className="w-5 h-5" />,
+  },
+  {
+    label: "Événements",
+    href: "/admin/events",
+    icon: <Calendar className="w-5 h-5" />,
+  },
+  {
+    label: "Présences",
+    href: "/admin/presences",
+    icon: <ClipboardList className="w-5 h-5" />,
   },
   {
     label: "Tous les utilisateurs",
     href: "/admin/utilisateurs",
     icon: <Users className="w-5 h-5" />,
   },
+  {
+    label: "Règlement intérieur",
+    href: "/admin/reglement-interieur",
+    icon: <ScrollText className="w-5 h-5" />,
+  },
+  {
+    label: "Notre établissement",
+    href: "/admin/etablissement",
+    icon: <Building2 className="w-5 h-5" />,
+  },
+  {
+    label: "Profil / Mot de passe",
+    href: "/admin/profile",
+    icon: <Settings className="w-5 h-5" />,
+  },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [logoutConfirm, setLogoutConfirm] = useState(false);
+  const { locale } = useI18n();
 
   const toggleMenu = (label: string) => {
     setExpandedMenus((prev) =>
       prev.includes(label) ? prev.filter((m) => m !== label) : [...prev, label],
     );
+  };
+
+  const handleLogout = () => {
+    document.cookie = "token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    document.cookie = "auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    try {
+      localStorage.removeItem("token");
+      localStorage.removeItem("auth_token");
+    } catch {
+      // ignore
+    }
+    setMobileOpen(false);
+    setLogoutConfirm(false);
+    router.push(`/${locale}/auth/login-user`);
   };
 
   return (
@@ -189,9 +240,13 @@ export function Sidebar() {
         {/* Bas de sidebar */}
         <div className=" absolute bottom-0 left-0 right-0 border-t border-sidebar-border p-4 space-y-2 bg-sidebar">
           <div className="px-4 py-2">
-            <LanguageSwitcher currentLocale={useI18n().locale} />
+            <LanguageSwitcher currentLocale={locale} />
           </div>
-          <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm text-destructive hover:bg-destructive/10 transition-all">
+          <button
+            type="button"
+            onClick={() => setLogoutConfirm(true)}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm text-destructive hover:bg-destructive/10 transition-all"
+          >
             <LogOut className="w-5 h-5" />
             Déconnexion
           </button>
@@ -312,14 +367,51 @@ export function Sidebar() {
 
         <div className="absolute bottom-0 left-0 right-0 border-t border-sidebar-border p-4 space-y-2 bg-sidebar">
           <div className="px-4 py-2">
-            <LanguageSwitcher currentLocale={useI18n().locale} />
+            <LanguageSwitcher currentLocale={locale} />
           </div>
-          <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm text-destructive hover:bg-destructive/10 transition-all">
+          <button
+            type="button"
+            onClick={() => { setMobileOpen(false); setLogoutConfirm(true); }}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm text-destructive hover:bg-destructive/10 transition-all"
+          >
             <LogOut className="w-5 h-5" />
             Déconnexion
           </button>
         </div>
       </aside>
+
+      {/* Logout confirmation dialog */}
+      {logoutConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100">
+                <LogOut className="w-5 h-5 text-destructive" />
+              </div>
+              <h2 className="text-base font-semibold text-gray-900">Se déconnecter ?</h2>
+            </div>
+            <p className="text-sm text-gray-600">
+              Vous allez être déconnecté de votre session. Vos données non sauvegardées seront perdues.
+            </p>
+            <div className="flex gap-3 pt-1">
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="flex-1 rounded-lg bg-destructive px-4 py-2 text-sm font-semibold text-white hover:bg-destructive/90 transition-colors"
+              >
+                Se déconnecter
+              </button>
+              <button
+                type="button"
+                onClick={() => setLogoutConfirm(false)}
+                className="flex-1 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

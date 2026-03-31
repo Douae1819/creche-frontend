@@ -47,6 +47,8 @@ export default function LocaleLayout({
     loadMessages();
   }, [locale]);
 
+  const loadingLabel = locale === 'ar' ? 'جاري التحميل…' : 'Chargement…';
+
   if (loading || !locale) {
     return (
       <div style={{ 
@@ -56,7 +58,7 @@ export default function LocaleLayout({
         height: '100vh',
         fontSize: '18px'
       }}>
-        Chargement...
+        {loadingLabel}
       </div>
     );
   }

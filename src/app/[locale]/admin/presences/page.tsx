@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { SidebarNew } from "@/components/layout/sidebar-new"
 import { apiClient } from "@/lib/api"
 import type { Locale } from "@/lib/i18n/config"
+import { useTranslations } from "next-intl"
 import { ChevronLeft, ChevronRight, Filter, X } from "lucide-react"
 
 type PresenceRow = {
@@ -34,8 +35,13 @@ export default function AdminPresencesPage({
   params: Promise<{ locale: Locale }>
 }) {
   const { locale: currentLocale } = use(params)
+  const t = useTranslations("admin.presences")
+  const dateLocale = currentLocale === "ar" ? "ar-MA" : "fr-FR"
 
   const today = new Date().toISOString().slice(0, 10)
+
+  const rowStatutLabel = (s: PresenceRow["statut"]) =>
+    s === "Present" ? t("apiStatus.Present") : s === "Absent" ? t("apiStatus.Absent") : t("apiStatus.Justifie")
 
   const [dateMin,         setDateMin]         = useState(today)
   const [dateMax,         setDateMax]         = useState(today)
@@ -104,7 +110,7 @@ export default function AdminPresencesPage({
           setTotal(typeof payload?.total === "number" ? payload.total : rows.length)
         }
       } catch {
-        if (!cancelled) setError("Impossible de charger l'historique des présences.")
+        if (!cancelled) setError(t("loadError"))
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -129,10 +135,17 @@ export default function AdminPresencesPage({
 
   const exportCsv = async () => {
     const rows = await fetchAll()
-    const header = ["Date","Enfant","Classe","Statut","Arrivée","Enseignant"].join(",")
+    const header = [
+      t("colDate"),
+      t("colChild"),
+      t("colClass"),
+      t("colStatus"),
+      t("colArrival"),
+      t("colTeacher"),
+    ].join(",")
     const lines = rows.map(r => [
       r.date ?? "", `${r.enfant?.prenom ?? ""} ${r.enfant?.nom ?? ""}`.trim(),
-      r.enfant?.classe?.nom ?? "", r.statut ?? "", r.arriveeA ?? "",
+      r.enfant?.classe?.nom ?? "", rowStatutLabel(r.statut), r.arriveeA ?? "",
       r.enregistrePar ? `${r.enregistrePar.prenom} ${r.enregistrePar.nom}`.trim() : ""
     ].map(c => `"${String(c).replaceAll('"','""')}"`).join(","))
     const csv = [header, ...lines].join("\n")
@@ -145,11 +158,12 @@ export default function AdminPresencesPage({
     const htmlRows = rows.map(r => {
       const name = r.enfant ? `${r.enfant.prenom ?? ""} ${r.enfant.nom ?? ""}`.trim() || "—" : "—"
       const teacher = r.enregistrePar ? `${r.enregistrePar.prenom} ${r.enregistrePar.nom}`.trim() : "—"
-      return `<tr><td>${r.date ?? "—"}</td><td>${name}</td><td>${r.enfant?.classe?.nom ?? "—"}</td><td>${r.statut ?? "—"}</td><td>${r.arriveeA ?? "—"}</td><td>${teacher}</td></tr>`
+      return `<tr><td>${r.date ?? "—"}</td><td>${name}</td><td>${r.enfant?.classe?.nom ?? "—"}</td><td>${rowStatutLabel(r.statut)}</td><td>${r.arriveeA ?? "—"}</td><td>${teacher}</td></tr>`
     }).join("")
     const w = window.open("", "_blank")
     if (!w) return
-    w.document.write(`<html><head><title>Présences</title><style>body{font-family:Arial,sans-serif;padding:24px}h1{font-size:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:8px;font-size:12px}th{background:#f0f0f0}</style></head><body><h1>PetitsPas — Présences</h1><p style="color:#666">Période : ${dateMin || "—"} → ${dateMax || "—"}</p><table><thead><tr><th>Date</th><th>Enfant</th><th>Classe</th><th>Statut</th><th>Arrivée</th><th>Enseignant</th></tr></thead><tbody>${htmlRows}</tbody></table></body></html>`)
+    const th = [t("colDate"), t("colChild"), t("colClass"), t("colStatus"), t("colArrival"), t("colTeacher")].map(h => `<th>${h}</th>`).join("")
+    w.document.write(`<html><head><title>${t("printTitle")}</title><style>body{font-family:Arial,sans-serif;padding:24px}h1{font-size:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:8px;font-size:12px}th{background:#f0f0f0}</style></head><body><h1>${t("printHeading")}</h1><p style="color:#666">${t("printPeriod", { from: dateMin || "—", to: dateMax || "—" })}</p><table><thead><tr>${th}</tr></thead><tbody>${htmlRows}</tbody></table></body></html>`)
     w.document.close(); w.focus(); w.print(); w.close()
   }
 
@@ -168,17 +182,17 @@ export default function AdminPresencesPage({
         <div className="bg-white border-b border-border px-4 py-4 md:px-6 md:py-5">
           <div className="flex items-start justify-between gap-3 flex-wrap max-w-6xl mx-auto">
             <div>
-              <h1 className="text-xl md:text-2xl font-bold text-foreground">Présences</h1>
-              <p className="text-sm text-muted-foreground mt-0.5">Consultez et exportez les présences.</p>
+              <h1 className="text-xl md:text-2xl font-bold text-foreground">{t("title")}</h1>
+              <p className="text-sm text-muted-foreground mt-0.5">{t("subtitle")}</p>
             </div>
             <div className="flex gap-2">
               <Button size="sm" variant="outline" onClick={() => setShowFilters(f => !f)} className="flex items-center gap-1.5 md:hidden">
                 <Filter className="w-3.5 h-3.5" />
-                {showFilters ? "Masquer" : "Filtres"}
+                {showFilters ? t("hideFilters") : t("showFilters")}
                 {(classeId || statut || enregistreParId || q) && <span className="w-1.5 h-1.5 rounded-full bg-primary inline-block ml-0.5" />}
               </Button>
               <Button size="sm" onClick={printTable} className="flex items-center gap-1.5">
-                📄 <span className="hidden sm:inline">Exporter PDF</span>
+                📄 <span className="hidden sm:inline">{t("exportPdf")}</span>
               </Button>
             </div>
           </div>
@@ -191,39 +205,39 @@ export default function AdminPresencesPage({
             {/* Date row */}
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 items-end">
               <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground">Date début</p>
+                <p className="text-xs font-medium text-muted-foreground">{t("dateStart")}</p>
                 <Input type="date" value={dateMin} onChange={e => { setPage(1); setDateMin(e.target.value) }} className="h-10" />
               </div>
               <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground">Date fin</p>
+                <p className="text-xs font-medium text-muted-foreground">{t("dateEnd")}</p>
                 <Input type="date" value={dateMax} onChange={e => { setPage(1); setDateMax(e.target.value) }} className="h-10" />
               </div>
               <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground">Classe</p>
+                <p className="text-xs font-medium text-muted-foreground">{t("class")}</p>
                 <select className={selectClass} value={classeId} onChange={e => { setPage(1); setClasseId(e.target.value) }}>
-                  <option value="">Toutes</option>
+                  <option value="">{t("allClasses")}</option>
                   {classes.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
                 </select>
               </div>
               <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground">Enseignant</p>
+                <p className="text-xs font-medium text-muted-foreground">{t("teacher")}</p>
                 <select className={selectClass} value={enregistreParId} onChange={e => { setPage(1); setEnregistreParId(e.target.value) }}>
-                  <option value="">Tous</option>
+                  <option value="">{t("allTeachers")}</option>
                   {teachers.map(u => <option key={u.id} value={u.id}>{`${u.prenom} ${u.nom}`.trim()}</option>)}
                 </select>
               </div>
               <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground">Statut</p>
+                <p className="text-xs font-medium text-muted-foreground">{t("status")}</p>
                 <select className={selectClass} value={statut} onChange={e => { setPage(1); setStatut(e.target.value) }}>
-                  <option value="">Tous</option>
-                  <option value="Present">Présent</option>
-                  <option value="Absent">Absent</option>
-                  <option value="Justifie">Justifié</option>
+                  <option value="">{t("allStatus")}</option>
+                  <option value="Present">{t("statusPresent")}</option>
+                  <option value="Absent">{t("statusAbsent")}</option>
+                  <option value="Justifie">{t("statusJustified")}</option>
                 </select>
               </div>
               <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground">Enfant</p>
-                <Input value={q} onChange={e => { setPage(1); setQ(e.target.value) }} placeholder="Nom…" className="h-10" />
+                <p className="text-xs font-medium text-muted-foreground">{t("child")}</p>
+                <Input value={q} onChange={e => { setPage(1); setQ(e.target.value) }} placeholder={t("childPlaceholder")} className="h-10" />
               </div>
             </div>
 
@@ -231,17 +245,17 @@ export default function AdminPresencesPage({
             <div className="mt-3 flex flex-wrap gap-2 items-center justify-between">
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" size="sm" onClick={() => { setPage(1); setDateMin(today); setDateMax(today) }}>
-                  Aujourd&apos;hui
+                  {t("today")}
                 </Button>
                 {(classeId || statut || enregistreParId || q || dateMin !== today || dateMax !== today) && (
                   <Button variant="outline" size="sm" onClick={() => { setDateMin(today); setDateMax(today); setClasseId(""); setStatut(""); setEnregistreParId(""); setQ(""); setPage(1) }} className="flex items-center gap-1 text-muted-foreground">
-                    <X className="w-3 h-3" /> Réinitialiser
+                    <X className="w-3 h-3" /> {t("reset")}
                   </Button>
                 )}
-                <Button variant="outline" size="sm" onClick={exportCsv}>CSV</Button>
+                <Button variant="outline" size="sm" onClick={exportCsv}>{t("csv")}</Button>
               </div>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span>Par page</span>
+                <span>{t("perPage")}</span>
                 <select className="h-8 rounded border border-input bg-background px-2 text-xs" value={String(pageSize)} onChange={e => { setPage(1); setPageSize(Number(e.target.value)) }}>
                   {[10, 25, 50, 100].map(v => <option key={v} value={v}>{v}</option>)}
                 </select>
@@ -254,15 +268,15 @@ export default function AdminPresencesPage({
             <div className="grid grid-cols-3 gap-3">
               <div className="rounded-xl p-3 text-center bg-emerald-50 border border-emerald-200">
                 <p className="text-xl font-bold text-emerald-700">{nbPresent}</p>
-                <p className="text-xs text-emerald-600">Présents</p>
+                <p className="text-xs text-emerald-600">{t("presentCount")}</p>
               </div>
               <div className="rounded-xl p-3 text-center bg-red-50 border border-red-200">
                 <p className="text-xl font-bold text-red-600">{nbAbsent}</p>
-                <p className="text-xs text-red-500">Absents</p>
+                <p className="text-xs text-red-500">{t("absentCount")}</p>
               </div>
               <div className="rounded-xl p-3 text-center bg-blue-50 border border-blue-200">
                 <p className="text-xl font-bold text-blue-700">{nbJustifie}</p>
-                <p className="text-xs text-blue-600">Justifiés</p>
+                <p className="text-xs text-blue-600">{t("justifiedCount")}</p>
               </div>
             </div>
           )}
@@ -272,19 +286,21 @@ export default function AdminPresencesPage({
           {loading ? (
             <div className="text-center py-12">
               <div className="w-8 h-8 border-4 border-primary/30 border-t-primary rounded-full animate-spin mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground">Chargement…</p>
+              <p className="text-sm text-muted-foreground">{t("loading")}</p>
             </div>
           ) : items.length === 0 ? (
             <div className="text-center py-12">
               <span className="text-4xl">📋</span>
-              <p className="mt-3 text-sm text-muted-foreground">Aucune présence trouvée pour cette période.</p>
+              <p className="mt-3 text-sm text-muted-foreground">{t("empty")}</p>
             </div>
           ) : (
             <Card className="overflow-hidden">
               {/* Pagination top */}
               <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30">
                 <p className="text-xs text-muted-foreground">
-                  {total} résultat{total > 1 ? "s" : ""} · page {page}/{totalPages}
+                  {total > 1
+                    ? t("resultsPlural", { total, page, totalPages })
+                    : t("results", { total, page, totalPages })}
                 </p>
                 <div className="flex gap-1.5">
                   <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))} className="h-7 w-7 p-0">
@@ -301,12 +317,12 @@ export default function AdminPresencesPage({
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-muted-foreground border-b bg-muted/20">
-                      <th className="py-3 px-4 font-medium">Date</th>
-                      <th className="py-3 px-4 font-medium">Enfant</th>
-                      <th className="py-3 px-4 font-medium">Classe</th>
-                      <th className="py-3 px-4 font-medium">Statut</th>
-                      <th className="py-3 px-4 font-medium">Arrivée</th>
-                      <th className="py-3 px-4 font-medium">Enseignant</th>
+                      <th className="py-3 px-4 font-medium">{t("colDate")}</th>
+                      <th className="py-3 px-4 font-medium">{t("colChild")}</th>
+                      <th className="py-3 px-4 font-medium">{t("colClass")}</th>
+                      <th className="py-3 px-4 font-medium">{t("colStatus")}</th>
+                      <th className="py-3 px-4 font-medium">{t("colArrival")}</th>
+                      <th className="py-3 px-4 font-medium">{t("colTeacher")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -319,7 +335,7 @@ export default function AdminPresencesPage({
                           <td className="py-3 px-4 font-medium">{enfant || "—"}</td>
                           <td className="py-3 px-4 text-muted-foreground">{row.enfant?.classe?.nom ?? "—"}</td>
                           <td className="py-3 px-4">
-                            <Badge className={badgeVariant(row.statut)}>{row.statut}</Badge>
+                            <Badge className={badgeVariant(row.statut)}>{rowStatutLabel(row.statut)}</Badge>
                           </td>
                           <td className="py-3 px-4 text-muted-foreground">{row.arriveeA ?? "—"}</td>
                           <td className="py-3 px-4 text-muted-foreground">{teacher}</td>
@@ -335,18 +351,18 @@ export default function AdminPresencesPage({
                 {items.map(row => {
                   const teacher = row.enregistrePar ? `${row.enregistrePar.prenom} ${row.enregistrePar.nom}`.trim() : null
                   const enfant  = row.enfant ? `${row.enfant.prenom ?? ""} ${row.enfant.nom ?? ""}`.trim() : "—"
-                  const dateLabel = row.date ? new Date(row.date + "T12:00:00").toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "short" }) : "—"
+                  const dateLabel = row.date ? new Date(row.date + "T12:00:00").toLocaleDateString(dateLocale, { weekday: "short", day: "2-digit", month: "short" }) : "—"
                   return (
                     <div key={row.id} className="px-4 py-3 flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-semibold text-sm">{enfant}</p>
-                          <Badge className={`text-[11px] ${badgeVariant(row.statut)}`}>{row.statut}</Badge>
+                          <Badge className={`text-[11px] ${badgeVariant(row.statut)}`}>{rowStatutLabel(row.statut)}</Badge>
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">
                           {dateLabel}
                           {row.enfant?.classe?.nom ? ` · ${row.enfant.classe.nom}` : ""}
-                          {row.arriveeA ? ` · Arrivée ${row.arriveeA}` : ""}
+                          {row.arriveeA ? ` · ${t("mobileArrival")} ${row.arriveeA}` : ""}
                           {teacher ? ` · ${teacher}` : ""}
                         </p>
                       </div>
@@ -359,11 +375,11 @@ export default function AdminPresencesPage({
               {totalPages > 1 && (
                 <div className="flex items-center justify-between px-4 py-3 border-t border-border">
                   <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))} className="flex items-center gap-1">
-                    <ChevronLeft className="w-3.5 h-3.5" /> Précédent
+                    <ChevronLeft className="w-3.5 h-3.5" /> {t("prev")}
                   </Button>
-                  <span className="text-xs text-muted-foreground">Page {page} / {totalPages}</span>
+                  <span className="text-xs text-muted-foreground">{t("pageOf", { page, totalPages })}</span>
                   <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))} className="flex items-center gap-1">
-                    Suivant <ChevronRight className="w-3.5 h-3.5" />
+                    {t("next")} <ChevronRight className="w-3.5 h-3.5" />
                   </Button>
                 </div>
               )}

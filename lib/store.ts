@@ -35,9 +35,13 @@ export const useAuthStore = create<AuthStore>((set) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await apiClient.loginAdmin(email, password);
-      const { accessToken, userId, role, email: userEmail } = response.data;
+      const { accessToken, refreshToken, userId, role, email: userEmail } =
+        response.data;
 
-      Cookies.set('token', accessToken, { expires: 1 });
+      Cookies.set('token', accessToken, { expires: 7 });
+      Cookies.set('auth_token', accessToken, { expires: 7 });
+      if (refreshToken)
+        Cookies.set('refresh_token', refreshToken, { expires: 7 });
       set({
         token: accessToken,
         user: { userId, email: userEmail, role },
@@ -56,9 +60,13 @@ export const useAuthStore = create<AuthStore>((set) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await apiClient.loginUser(email, password);
-      const { accessToken, userId, role, email: userEmail } = response.data;
+      const { accessToken, refreshToken, userId, role, email: userEmail } =
+        response.data;
 
-      Cookies.set('token', accessToken, { expires: 1 });
+      Cookies.set('token', accessToken, { expires: 7 });
+      Cookies.set('auth_token', accessToken, { expires: 7 });
+      if (refreshToken)
+        Cookies.set('refresh_token', refreshToken, { expires: 7 });
       set({
         token: accessToken,
         user: { userId, email: userEmail, role },
@@ -74,8 +82,8 @@ export const useAuthStore = create<AuthStore>((set) => ({
   },
 
   logout: () => {
-    Cookies.remove('token');
     set({ user: null, token: null });
+    void apiClient.logout();
   },
 
   setUser: (user: User | null) => {

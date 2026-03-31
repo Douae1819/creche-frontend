@@ -9,6 +9,7 @@ import { Plus, Trash2, Edit2, Users, UserPlus, X } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { SidebarNew } from "@/components/layout/sidebar-new";
 import { Locale } from "@/lib/i18n/config";
+import { useTranslations } from "next-intl";
 
 interface EnseignantInClasse {
   enseignant: {
@@ -43,6 +44,7 @@ interface TeacherUser {
 export default function ClassesPage({ params }: { params: Promise<{ locale: Locale }> }) {
   const resolvedParams = use(params);
   const currentLocale = resolvedParams.locale;
+  const tc = useTranslations("admin.classesManage");
   const [classes, setClasses] = useState<Classe[]>([]);
   const [teachers, setTeachers] = useState<TeacherUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -86,7 +88,7 @@ export default function ClassesPage({ params }: { params: Promise<{ locale: Loca
       setError(null);
     } catch (err) {
       console.error("[Classes] Error fetching data:", err);
-      setError("Erreur lors du chargement des données");
+      setError(tc("loadError"));
     } finally {
       setLoading(false);
     }
@@ -126,7 +128,7 @@ export default function ClassesPage({ params }: { params: Promise<{ locale: Loca
       setShowForm(false);
     } catch (err) {
       console.error("[Classes] Error saving class:", err);
-      setError("Erreur lors de la sauvegarde");
+      setError(tc("saveError"));
     }
   };
 
@@ -143,13 +145,13 @@ export default function ClassesPage({ params }: { params: Promise<{ locale: Loca
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Supprimer cette classe ?")) return;
+    if (!confirm(tc("deleteConfirm"))) return;
     try {
       await apiClient.deleteClass(id);
       await fetchData();
     } catch (err) {
       console.error("[Classes] Error deleting:", err);
-      setError("Erreur lors de la suppression");
+      setError(tc("deleteError"));
     }
   };
 
@@ -163,7 +165,7 @@ export default function ClassesPage({ params }: { params: Promise<{ locale: Loca
       setAssigningClassId(null);
       setSelectedTeacherId("");
     } catch (err: any) {
-      const msg = err?.response?.data?.message ?? "Erreur lors de l'assignation";
+      const msg = err?.response?.data?.message ?? tc("assignError");
       setAssignError(msg);
     } finally {
       setAssignLoading(false);
@@ -171,7 +173,7 @@ export default function ClassesPage({ params }: { params: Promise<{ locale: Loca
   };
 
   const handleRemoveTeacher = async (classeId: string, enseignantId: string) => {
-    if (!confirm("Retirer cet enseignant de la classe ?")) return;
+    if (!confirm(tc("unassignConfirm"))) return;
     try {
       await apiClient.removeTeacherFromClass(classeId, enseignantId);
       await fetchData();
@@ -186,7 +188,7 @@ export default function ClassesPage({ params }: { params: Promise<{ locale: Loca
     const assignedUserIds = new Set(
       (classe.enseignants ?? []).map((e) => e.enseignant.utilisateur.id)
     );
-    return teachers.filter((t) => !assignedUserIds.has(t.id));
+    return teachers.filter((teacher) => !assignedUserIds.has(teacher.id));
   };
 
   if (loading) {
@@ -195,8 +197,8 @@ export default function ClassesPage({ params }: { params: Promise<{ locale: Loca
         <SidebarNew currentLocale={currentLocale} />
         <div className="flex-1 md:ml-64 p-4 md:p-8 pt-16 md:pt-8 flex items-center justify-center">
           <div className="space-y-4 text-center">
-            <h1 className="text-2xl font-bold">Gestion des classes</h1>
-            <p className="text-muted-foreground">Chargement…</p>
+            <h1 className="text-2xl font-bold">{tc("title")}</h1>
+            <p className="text-muted-foreground">{tc("loading")}</p>
           </div>
         </div>
       </div>
@@ -235,12 +237,12 @@ export default function ClassesPage({ params }: { params: Promise<{ locale: Loca
           {showForm && (
             <Card className="p-6 border-2 border-primary/20">
               <h2 className="text-lg font-semibold mb-4">
-                {editingId ? "Modifier la classe" : "Créer une nouvelle classe"}
+                {editingId ? tc("formEdit") : tc("formCreate")}
               </h2>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-1">Nom de la classe *</label>
+                    <label className="block text-sm font-medium mb-1">{tc("nameLabel")}</label>
                     <select
                       name="nom"
                       value={formData.nom}
@@ -248,7 +250,7 @@ export default function ClassesPage({ params }: { params: Promise<{ locale: Loca
                       className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
                       required
                     >
-                      <option value="">— Choisir —</option>
+                      <option value="">{tc("chooseOption")}</option>
                       <option value="TPS">TPS — Toute Petite Section</option>
                       <option value="PS">PS — Petite Section</option>
                       <option value="MS">MS — Moyenne Section</option>
@@ -256,14 +258,14 @@ export default function ClassesPage({ params }: { params: Promise<{ locale: Loca
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Niveau</label>
+                    <label className="block text-sm font-medium mb-1">{tc("levelLabel")}</label>
                     <select
                       name="niveau"
                       value={formData.niveau}
                       onChange={handleInputChange}
                       className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
                     >
-                      <option value="">— Aucun niveau —</option>
+                      <option value="">{tc("noLevelOption")}</option>
                       <option value="TPS">TPS — Toute Petite Section (18 mois – 2 ans)</option>
                       <option value="PS">PS — Petite Section (2 – 3 ans)</option>
                       <option value="MS">MS — Moyenne Section (3 – 4 ans)</option>
@@ -273,20 +275,20 @@ export default function ClassesPage({ params }: { params: Promise<{ locale: Loca
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-1">Tranche d'âge</label>
+                    <label className="block text-sm font-medium mb-1">{tc("ageRangeLabel")}</label>
                     <Input
                       name="trancheAge"
-                      placeholder="Ex : 2–3 ans"
+                      placeholder={tc("ageRangePh")}
                       value={formData.trancheAge}
                       onChange={handleInputChange}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Capacité</label>
+                    <label className="block text-sm font-medium mb-1">{tc("capacityLabel")}</label>
                     <Input
                       type="number"
                       name="capacite"
-                      placeholder="Ex : 20"
+                      placeholder={tc("capacityPh")}
                       value={formData.capacite}
                       onChange={handleInputChange}
                     />
@@ -300,11 +302,11 @@ export default function ClassesPage({ params }: { params: Promise<{ locale: Loca
                     checked={formData.active}
                     onChange={handleInputChange}
                   />
-                  <label htmlFor="active" className="text-sm font-medium">Classe active</label>
+                  <label htmlFor="active" className="text-sm font-medium">{tc("activeLabel")}</label>
                 </div>
                 <div className="flex gap-3 pt-4">
                   <Button type="submit" className="bg-primary hover:bg-primary/90">
-                    {editingId ? "Mettre à jour" : "Créer"}
+                    {editingId ? tc("submitUpdate") : tc("submitCreate")}
                   </Button>
                   <Button
                     variant="outline"
@@ -313,7 +315,7 @@ export default function ClassesPage({ params }: { params: Promise<{ locale: Loca
                       setEditingId(null);
                     }}
                   >
-                    Annuler
+                    {tc("cancel")}
                   </Button>
                 </div>
               </form>
@@ -325,7 +327,7 @@ export default function ClassesPage({ params }: { params: Promise<{ locale: Loca
             {classes.length === 0 ? (
               <Card className="p-12 text-center border-dashed">
                 <Users className="w-12 h-12 text-muted-foreground mx-auto mb-3 opacity-50" />
-                <p className="text-muted-foreground">Aucune classe créée pour le moment.</p>
+                <p className="text-muted-foreground">{tc("emptyState")}</p>
               </Card>
             ) : (
               classes.map((classe) => {
@@ -343,17 +345,17 @@ export default function ClassesPage({ params }: { params: Promise<{ locale: Loca
                       <div className="flex items-center gap-3">
                         <h3 className="text-lg font-semibold">{classe.nom}</h3>
                         {classe.active ? (
-                          <Badge className="bg-secondary text-secondary-foreground">Active</Badge>
+                          <Badge className="bg-secondary text-secondary-foreground">{tc("badgeActive")}</Badge>
                         ) : (
-                          <Badge variant="secondary">Inactive</Badge>
+                          <Badge variant="secondary">{tc("badgeInactive")}</Badge>
                         )}
                       </div>
                       <div className="flex gap-2 flex-shrink-0">
                         <Button size="sm" variant="outline" className="gap-1" onClick={() => handleEdit(classe)}>
-                          <Edit2 className="w-4 h-4" /><span className="hidden sm:inline">Modifier</span>
+                          <Edit2 className="w-4 h-4" /><span className="hidden sm:inline">{tc("modify")}</span>
                         </Button>
                         <Button size="sm" variant="outline" className="gap-1 text-destructive hover:bg-destructive/10" onClick={() => handleDelete(classe.id)}>
-                          <Trash2 className="w-4 h-4" /><span className="hidden sm:inline">Supprimer</span>
+                          <Trash2 className="w-4 h-4" /><span className="hidden sm:inline">{tc("remove")}</span>
                         </Button>
                       </div>
                     </div>
@@ -367,7 +369,7 @@ export default function ClassesPage({ params }: { params: Promise<{ locale: Loca
                       )}
                       {classe.trancheAge && (
                         <div className="p-2 px-3 bg-muted rounded-lg text-sm">
-                          <span className="text-xs text-muted-foreground">Tranche : </span>
+                          <span className="text-xs text-muted-foreground">{tc("agePrefix")} </span>
                           <span className="font-semibold">{classe.trancheAge}</span>
                         </div>
                       )}
@@ -377,18 +379,18 @@ export default function ClassesPage({ params }: { params: Promise<{ locale: Loca
                             ? "bg-red-50 border border-red-200"
                             : "bg-secondary/10"
                         }`}>
-                          <span className="text-xs text-muted-foreground">Enfants : </span>
+                          <span className="text-xs text-muted-foreground">{tc("childrenPrefix")} </span>
                           <span className="font-semibold">
                             {classe._count?.enfants ?? 0} / {classe.capacite}
                           </span>
                           {classe._count && classe._count.enfants >= classe.capacite && (
-                            <span className="ml-2 text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full border border-red-200 font-semibold">Complet</span>
+                            <span className="ml-2 text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full border border-red-200 font-semibold">{tc("fullBadge")}</span>
                           )}
                         </div>
                       )}
                       {classe.capacite == null && classe._count != null && (
                         <div className="p-2 px-3 bg-secondary/10 rounded-lg text-sm">
-                          <span className="text-xs text-muted-foreground">Enfants : </span>
+                          <span className="text-xs text-muted-foreground">{tc("childrenPrefix")} </span>
                           <span className="font-semibold">{classe._count.enfants}</span>
                         </div>
                       )}
@@ -399,7 +401,7 @@ export default function ClassesPage({ params }: { params: Promise<{ locale: Loca
                       <div className="flex items-center justify-between mb-3">
                         <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
                           <Users className="w-4 h-4 text-primary" />
-                          Enseignants assignés
+                          {tc("teachersAssigned")}
                           {assignedTeachers.length > 0 && (
                             <Badge variant="outline" className="ml-1 text-xs">
                               {assignedTeachers.length}
@@ -426,7 +428,7 @@ export default function ClassesPage({ params }: { params: Promise<{ locale: Loca
                       {/* Current teachers list */}
                       {assignedTeachers.length === 0 ? (
                         <p className="text-xs text-muted-foreground italic">
-                          Aucun enseignant assigné à cette classe.
+                          {tc("emptyTeachersInClass")}
                         </p>
                       ) : (
                         <div className="flex flex-wrap gap-2 mb-3">
@@ -450,7 +452,7 @@ export default function ClassesPage({ params }: { params: Promise<{ locale: Loca
                                   handleRemoveTeacher(classe.id, ec.enseignant.id)
                                 }
                                 className="ml-1 text-muted-foreground hover:text-destructive transition-colors"
-                                title="Retirer de la classe"
+                                title={tc("removeTitle")}
                               >
                                 <X className="w-3.5 h-3.5" />
                               </button>
@@ -467,10 +469,10 @@ export default function ClassesPage({ params }: { params: Promise<{ locale: Loca
                             onChange={(e) => setSelectedTeacherId(e.target.value)}
                             className="flex-1 border border-border rounded-md px-3 py-1.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
                           >
-                            <option value="">— Sélectionner un enseignant —</option>
-                            {availableTeachers.map((t) => (
-                              <option key={t.id} value={t.id}>
-                                {t.prenom} {t.nom} · {t.email}
+                            <option value="">{tc("selectTeacherDash")}</option>
+                            {availableTeachers.map((teacher) => (
+                              <option key={teacher.id} value={teacher.id}>
+                                {teacher.prenom} {teacher.nom} · {teacher.email}
                               </option>
                             ))}
                           </select>
@@ -480,7 +482,7 @@ export default function ClassesPage({ params }: { params: Promise<{ locale: Loca
                             disabled={!selectedTeacherId || assignLoading}
                             onClick={() => handleAssignTeacher(classe.id)}
                           >
-                            {assignLoading ? "…" : "Assigner"}
+                            {assignLoading ? tc("assigningShort") : tc("assignButton")}
                           </Button>
                         </div>
                       )}
@@ -489,7 +491,7 @@ export default function ClassesPage({ params }: { params: Promise<{ locale: Loca
                       )}
                       {availableTeachers.length === 0 && assignedTeachers.length > 0 && (
                         <p className="text-xs text-muted-foreground mt-1 italic">
-                          Tous les enseignants sont déjà assignés à cette classe.
+                          {tc("allTeachersAssigned")}
                         </p>
                       )}
                     </div>

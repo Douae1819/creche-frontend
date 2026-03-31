@@ -10,6 +10,7 @@ import { Plus, Trash2, Calendar } from "lucide-react";
 import { SidebarNew } from "@/components/layout/sidebar-new";
 import { apiClient } from "@/lib/api";
 import { Locale } from "@/lib/i18n/config";
+import { useTranslations } from "next-intl";
 
 interface EventItem {
   id: string;
@@ -28,6 +29,8 @@ interface ClasseItem {
 export default function EventsPage({ params }: { params: Promise<{ locale: Locale }> }) {
   const resolvedParams = use(params);
   const currentLocale = resolvedParams.locale;
+  const t = useTranslations("admin.eventsManage");
+  const dateLocale = currentLocale === "ar" ? "ar-MA" : "fr-FR";
 
   const [events, setEvents] = useState<EventItem[]>([]);
   const [classes, setClasses] = useState<ClasseItem[]>([]);
@@ -97,7 +100,7 @@ export default function EventsPage({ params }: { params: Promise<{ locale: Local
       );
     } catch (err) {
       console.error("[Admin/Events] Error loading events/classes", err);
-      setError("Erreur lors du chargement des événements ou des classes.");
+      setError(t("loadError"));
     } finally {
       setLoading(false);
     }
@@ -114,7 +117,7 @@ export default function EventsPage({ params }: { params: Promise<{ locale: Local
     e.preventDefault();
 
     if (!formData.titre || !formData.date || !formData.startTime || !formData.endTime || !formData.classeId) {
-      setError("Veuillez renseigner le titre, la date, les heures et la classe.");
+      setError(t("validationError"));
       return;
     }
 
@@ -152,7 +155,7 @@ export default function EventsPage({ params }: { params: Promise<{ locale: Local
       } else if (Array.isArray(apiMessage)) {
         setError(apiMessage.join(" "));
       } else {
-        setError("Erreur lors de la création de l'événement.");
+        setError(t("createError"));
       }
     } finally {
       setSaving(false);
@@ -160,7 +163,7 @@ export default function EventsPage({ params }: { params: Promise<{ locale: Local
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Supprimer cet événement ?")) return;
+    if (!confirm(t("deleteConfirm"))) return;
 
     try {
       setError(null);
@@ -168,13 +171,13 @@ export default function EventsPage({ params }: { params: Promise<{ locale: Local
       await loadData();
     } catch (err) {
       console.error("[Admin/Events] Error deleting event", err);
-      setError("Erreur lors de la suppression de l'événement.");
+      setError(t("deleteError"));
     }
   };
 
   const formatDateTime = (iso: string) => {
     const d = new Date(iso);
-    return d.toLocaleString("fr-FR", {
+    return d.toLocaleString(dateLocale, {
       weekday: "short",
       day: "2-digit",
       month: "short",
@@ -189,8 +192,8 @@ export default function EventsPage({ params }: { params: Promise<{ locale: Local
         <SidebarNew currentLocale={currentLocale} />
         <div className="flex-1 md:ml-64 p-4 md:p-8 pt-16 md:pt-8 flex items-center justify-center">
           <div className="space-y-4 text-center">
-            <h1 className="text-2xl font-bold">Événements</h1>
-            <p className="text-muted-foreground">Chargement…</p>
+            <h1 className="text-2xl font-bold">{t("title")}</h1>
+            <p className="text-muted-foreground">{t("loading")}</p>
           </div>
         </div>
       </div>
@@ -229,17 +232,17 @@ export default function EventsPage({ params }: { params: Promise<{ locale: Local
           {showForm && (
             <Card className="p-6 border-2 border-primary/20">
               <h2 className="text-lg font-semibold text-foreground mb-4">
-                Créer un nouvel événement
+                {t("formTitle")}
               </h2>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1">
-                      Titre
+                      {t("fieldTitle")}
                     </label>
                     <Input
                       name="titre"
-                      placeholder="Ex: Réunion parents-enseignants"
+                      placeholder={t("titlePh")}
                       value={formData.titre}
                       onChange={handleInputChange}
                       required
@@ -247,7 +250,7 @@ export default function EventsPage({ params }: { params: Promise<{ locale: Local
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1">
-                      Classe
+                      {t("fieldClass")}
                     </label>
                     <select
                       name="classeId"
@@ -256,7 +259,7 @@ export default function EventsPage({ params }: { params: Promise<{ locale: Local
                       className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                       required
                     >
-                      <option value="">Sélectionner une classe…</option>
+                      <option value="">{t("selectClass")}</option>
                       {classes.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.nom}
@@ -268,11 +271,11 @@ export default function EventsPage({ params }: { params: Promise<{ locale: Local
 
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">
-                    Description
+                    {t("fieldDescription")}
                   </label>
                   <Textarea
                     name="description"
-                    placeholder="Détaillez le lieu, les consignes, etc."
+                    placeholder={t("descPh")}
                     value={formData.description}
                     onChange={handleInputChange}
                     className="resize-none"
@@ -282,7 +285,7 @@ export default function EventsPage({ params }: { params: Promise<{ locale: Local
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1">
-                      Date
+                      {t("fieldDate")}
                     </label>
                     <Input
                       type="date"
@@ -306,7 +309,7 @@ export default function EventsPage({ params }: { params: Promise<{ locale: Local
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1">
-                      Heure de fin
+                      {t("endTime")}
                     </label>
                     <Input
                       type="time"
@@ -356,9 +359,9 @@ export default function EventsPage({ params }: { params: Promise<{ locale: Local
                     <div className="flex flex-wrap items-center gap-2 mb-1">
                       <h3 className="text-base font-bold text-foreground">{ev.titre}</h3>
                       <Badge className={isPast ? "bg-muted text-muted-foreground" : "bg-secondary text-secondary-foreground font-semibold"}>
-                        {ev.classeId ? classes.find(c => c.id === ev.classeId)?.nom ?? "Classe" : "Général"}
+                        {ev.classeId ? classes.find(c => c.id === ev.classeId)?.nom ?? t("scopeClass") : t("scopeGeneral")}
                       </Badge>
-                      {isPast && <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200">Passé</span>}
+                      {isPast && <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200">{t("pastBadge")}</span>}
                     </div>
                     <p className="text-sm text-muted-foreground">
                       {formatDateTime(ev.startAt)} → {formatDateTime(ev.endAt)}
@@ -384,7 +387,7 @@ export default function EventsPage({ params }: { params: Promise<{ locale: Local
                 {/* À venir */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
-                    <h2 className="text-sm font-semibold text-foreground">À venir</h2>
+                    <h2 className="text-sm font-semibold text-foreground">{t("upcoming")}</h2>
                     <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">{future.length}</span>
                   </div>
                   {future.length === 0 ? (
@@ -407,7 +410,7 @@ export default function EventsPage({ params }: { params: Promise<{ locale: Local
                       onClick={() => setShowPast(v => !v)}
                       className="flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
                     >
-                      <span>{showPast ? "▾" : "▸"} Événements passés</span>
+                      <span>{showPast ? "▾" : "▸"} {t("pastToggle")}</span>
                       <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">{past.length}</span>
                     </button>
                     {showPast && (

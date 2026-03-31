@@ -2,6 +2,7 @@
 
 import { use, useEffect, useState } from "react";
 import { Locale } from "@/lib/i18n/config";
+import { useTranslations } from "next-intl";
 import { apiClient } from "@/lib/api";
 import { SidebarNew } from "@/components/layout/sidebar-new";
 import { Card } from "@/components/ui/card";
@@ -39,6 +40,8 @@ export default function ClassOverviewPage({
 }) {
   const resolvedParams = use(params);
   const currentLocale = resolvedParams.locale;
+  const t = useTranslations("admin.classOverview");
+  const dateLocale = currentLocale === "ar" ? "ar-MA" : "fr-FR";
 
   const [classes, setClasses] = useState<ClasseItem[]>([]);
   const [selectedClasseId, setSelectedClasseId] = useState<string>("");
@@ -85,7 +88,7 @@ export default function ClassOverviewPage({
       setChildren(filtered);
     } catch (err) {
       console.error("[ClassOverview] Error loading children", err);
-      setError("Erreur lors du chargement des enfants de la classe.");
+      setError(t("loadChildrenError"));
     } finally {
       setLoading(false);
     }
@@ -107,8 +110,8 @@ export default function ClassOverviewPage({
         <SidebarNew currentLocale={currentLocale} />
         <div className="flex-1 md:ml-64 p-4 md:p-8 pt-16 md:pt-8 flex items-center justify-center">
           <div className="space-y-4 text-center">
-            <h1 className="text-2xl font-bold">Aperçu classes / enfants</h1>
-            <p className="text-muted-foreground">Chargement...</p>
+            <h1 className="text-2xl font-bold">{t("loadingTitle")}</h1>
+            <p className="text-muted-foreground">{t("loading")}</p>
           </div>
         </div>
       </div>
@@ -140,7 +143,7 @@ export default function ClassOverviewPage({
 
           <Card className="p-4 flex items-center gap-4">
             <span className="text-sm font-medium text-foreground">
-              Classe sélectionnée :
+              {t("selectedClass")}
             </span>
             <select
               value={selectedClasseId}
@@ -160,17 +163,17 @@ export default function ClassOverviewPage({
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="border-b bg-gray-50">
-                    <th className="px-4 py-2 text-left font-semibold">Enfant</th>
-                    <th className="px-4 py-2 text-left font-semibold">Classe</th>
-                    <th className="px-4 py-2 text-left font-semibold">Date de naissance</th>
-                    <th className="px-4 py-2 text-left font-semibold">Enseignants de la classe</th>
+                    <th className="px-4 py-2 text-left font-semibold">{t("colChild")}</th>
+                    <th className="px-4 py-2 text-left font-semibold">{t("colClass")}</th>
+                    <th className="px-4 py-2 text-left font-semibold">{t("colBirth")}</th>
+                    <th className="px-4 py-2 text-left font-semibold">{t("colTeachers")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {children.length === 0 ? (
                     <tr>
                       <td colSpan={4} className="px-4 py-6 text-center text-muted-foreground">
-                        Aucun enfant trouvé pour cette classe.
+                        {t("emptyClass")}
                       </td>
                     </tr>
                   ) : (
@@ -183,7 +186,7 @@ export default function ClassOverviewPage({
                           {enfant.classe?.nom ?? "-"}
                         </td>
                         <td className="px-4 py-2">
-                          {new Date(enfant.dateNaissance).toLocaleDateString("fr-FR")}
+                          {new Date(enfant.dateNaissance).toLocaleDateString(dateLocale)}
                         </td>
                         <td className="px-4 py-2">
                           {selectedClasse && selectedClasse.enseignants && selectedClasse.enseignants.length > 0 ? (
@@ -203,7 +206,7 @@ export default function ClassOverviewPage({
                             </div>
                           ) : (
                             <span className="text-xs text-muted-foreground">
-                              Aucun enseignant assigné à cette classe.
+                              {t("noTeachers")}
                             </span>
                           )}
                         </td>

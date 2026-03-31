@@ -1,11 +1,13 @@
 "use client"
 
 import type React from "react"
-
+import { useState } from "react"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { usePathname, useRouter } from "next/navigation"
 import { useTranslations } from "next-intl"
+import { LogOut, ChevronDown } from "lucide-react"
+
 export default function TeacherLayout({
   children,
 }: {
@@ -14,6 +16,7 @@ export default function TeacherLayout({
   const pathname = usePathname()
   const router = useRouter()
   const t = useTranslations()
+  const [menuOpen, setMenuOpen] = useState(false)
 
   const isArabic = pathname?.startsWith("/ar")
   const currentLocale = isArabic ? "ar" : "fr"
@@ -31,12 +34,10 @@ export default function TeacherLayout({
   }
 
   const handleLogout = () => {
-    // Effacer les principaux cookies/token côté client
     if (typeof document !== "undefined") {
       document.cookie = "token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
       document.cookie = "auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
     }
-
     try {
       if (typeof localStorage !== "undefined") {
         localStorage.removeItem("token")
@@ -44,10 +45,9 @@ export default function TeacherLayout({
     } catch {
       // ignore
     }
-
-    const loginPath = `/${currentLocale}`
-    router.push(loginPath)
+    router.push(`/${currentLocale}/auth/login-user`)
   }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-slate-50">
       {/* Header */}
@@ -76,9 +76,32 @@ export default function TeacherLayout({
             >
               {currentLabel} • {nextLabel}
             </Button>
-            <Button variant="ghost" size="sm" onClick={handleLogout}>
-              {t("common.logout")}
-            </Button>
+            {/* Profile menu — logout protected behind click */}
+            <div className="relative">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setMenuOpen(v => !v)}
+                className="flex items-center gap-1"
+              >
+                {t("common.account") || "Mon compte"}
+                <ChevronDown className="w-3 h-3" />
+              </Button>
+              {menuOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+                  <div className="absolute right-0 top-10 z-20 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[160px]">
+                    <button
+                      onClick={() => { setMenuOpen(false); handleLogout() }}
+                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      {t("common.logout")}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </header>

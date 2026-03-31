@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import Cookies from 'js-cookie';
+import { apiClient } from '@/lib/api';
 
 export interface User {
   id: string;
@@ -79,7 +80,7 @@ export const useAuthStore = create<AuthState>()(
 
       logout: () => {
         set({ user: null, token: null });
-        Cookies.remove('auth_token');
+        void apiClient.logout();
       },
 
       initializeAuth: () => {
