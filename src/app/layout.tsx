@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 
@@ -8,7 +8,6 @@ export const metadata: Metadata = {
   title: "PetitsPas",
   description: "Plateforme de gestion pour crèches et garderies",
   manifest: "/manifest.json",
-  themeColor: "#AEDFF7",
   icons: {
     icon: "/icons/icon-192.png",
     apple: [
@@ -24,12 +23,13 @@ export const metadata: Metadata = {
   },
 };
 
-export const viewport = {
+export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
+  themeColor: "#AEDFF7",
 };
 
 export default function RootLayout({
