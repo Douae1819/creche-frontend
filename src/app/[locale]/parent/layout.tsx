@@ -34,7 +34,7 @@ export default function ParentLayout({ children }: { children: React.ReactNode }
     } catch {
       /* ignore */
     }
-    router.replace(withLocalePath(currentLocale, "/auth/login-user"))
+    router.replace(withLocalePath(currentLocale, "/"))
   }
 
   return (

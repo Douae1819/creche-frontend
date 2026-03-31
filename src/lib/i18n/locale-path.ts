@@ -2,10 +2,13 @@ import { defaultLocale, locales, type Locale } from "@/lib/i18n/config";
 
 const NEXT_INTL_LOCALE_COOKIE = "NEXT_LOCALE";
 
-/** Avec `localePrefix: 'as-needed'`, la locale par défaut (fr) n’a pas de préfixe dans l’URL. */
+/**
+ * Toujours préfixer avec la locale (/fr/..., /ar/...) pour cibler les routes sous `app/[locale]/...`
+ * et éviter les doublons historiques `app/(dashboard)/admin/...` sur `/admin` sans préfixe.
+ */
 export function withLocalePath(locale: string, path: string): string {
   const p = path.startsWith("/") ? path : `/${path}`;
-  if (locale === defaultLocale) return p;
+  if (p === "/") return `/${locale}`;
   return `/${locale}${p}`;
 }
 

@@ -118,7 +118,7 @@ export function Sidebar() {
     }
     setMobileOpen(false);
     setLogoutConfirm(false);
-    router.push(`/${locale}/auth/login-user`);
+    router.push(`/${locale}`);
   };
 
   return (

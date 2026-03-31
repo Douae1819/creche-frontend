@@ -45,7 +45,7 @@ export default function TeacherLayout({
     } catch {
       // ignore
     }
-    router.push(`/${currentLocale}/auth/login-user`)
+    router.push(`/${currentLocale}`)
   }
 
   return (

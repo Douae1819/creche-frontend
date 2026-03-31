@@ -1,7 +1,16 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import Cookies from 'js-cookie';
+import { defaultLocale, locales, type Locale } from '@/lib/i18n/config';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+
+/** Page de connexion = accueil localisé (`/[locale]`), pas `/auth/login-user` (souvent 404 hors `[locale]`). */
+function getBrowserLoginHomeUrl(): string {
+  if (typeof window === 'undefined') return `/${defaultLocale}`;
+  const c = Cookies.get('NEXT_LOCALE');
+  const loc: Locale = c && locales.includes(c as Locale) ? (c as Locale) : defaultLocale;
+  return `/${loc}`;
+}
 
 type RetryConfig = InternalAxiosRequestConfig & { _retry?: boolean };
 
@@ -49,7 +58,7 @@ class ApiClient {
         ) {
           this.clearAuthCookies();
           if (typeof window !== 'undefined') {
-            window.location.href = '/auth/login-user';
+            window.location.href = getBrowserLoginHomeUrl();
           }
           return Promise.reject(error);
         }
@@ -57,7 +66,7 @@ class ApiClient {
         if (originalRequest._retry) {
           this.clearAuthCookies();
           if (typeof window !== 'undefined') {
-            window.location.href = '/auth/login-user';
+            window.location.href = getBrowserLoginHomeUrl();
           }
           return Promise.reject(error);
         }
@@ -67,7 +76,7 @@ class ApiClient {
         if (!newAccess) {
           this.clearAuthCookies();
           if (typeof window !== 'undefined') {
-            window.location.href = '/auth/login-user';
+            window.location.href = getBrowserLoginHomeUrl();
           }
           return Promise.reject(error);
         }
