@@ -76,6 +76,9 @@ export interface DailyResume {
   sieste?: SiesteLevel;
   participation?: ParticipationLevel;
   observations: string[];
+  /** API parent : dernier résumé ≤ date demandée */
+  isFallback?: boolean;
+  requestedDate?: string;
   creePar?: string;
   creeLe: Date;
   modifieLe: Date;

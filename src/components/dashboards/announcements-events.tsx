@@ -7,6 +7,9 @@ const events = [
   { title: "Journée portes ouvertes", date: "15/10/2025", action: "Rappel WhatsApp" },
 ]
 
+
+
+
 export function AnnouncementsEvents() {
   return (
     <Card className="p-6">

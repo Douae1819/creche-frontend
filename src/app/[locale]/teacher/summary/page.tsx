@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useTranslations } from "next-intl"
 import { apiClient } from "@/lib/api"
+import { formatLocalDateKey } from "@/lib/date-local"
 
 type ClassSummary = {
   date: string
@@ -17,7 +18,6 @@ type ClassSummary = {
   absentsCount: number
   justifiesCount: number
   resumesCount: number
-  avgNapMinutes?: number
 }
 
 type ExportStats = {
@@ -51,7 +51,7 @@ export default function TeacherSummary() {
         setLoading(true)
         setError(null)
 
-        const todayDate = new Date().toISOString().slice(0, 10)
+        const todayDate = formatLocalDateKey(new Date())
 
         const classesRes = await apiClient.listClasses()
         const classes = classesRes.data?.data ?? classesRes.data ?? []
@@ -89,15 +89,6 @@ export default function TeacherSummary() {
 
         if (!cancelled) {
           setSummaryData(summary)
-
-          // Debug: inspect raw statistics returned by the API for this day
-          if (statsForDay) {
-            // eslint-disable-next-line no-console
-            console.log("[TeacherSummary] statsForDay", statsForDay)
-          } else {
-            // eslint-disable-next-line no-console
-            console.log("[TeacherSummary] no statsForDay for", todayDate, statsArray)
-          }
 
           setStats(
             statsForDay
@@ -230,15 +221,6 @@ export default function TeacherSummary() {
 
   const presentCount = summaryData.presentsCount
 
-  const formatNap = (minutes?: number) => {
-    if (!minutes || minutes <= 0) return "0h00"
-    const h = Math.floor(minutes / 60)
-    const m = minutes % 60
-    const hLabel = `${h}h`
-    const mLabel = m.toString().padStart(2, "0")
-    return `${hLabel}${mLabel}`
-  }
-
   return (
     <div className="space-y-6 max-w-6xl mx-auto px-4 md:px-6 lg:px-0 py-6 md:py-8">
       {/* Header */}
@@ -257,7 +239,7 @@ export default function TeacherSummary() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card className="border-0 bg-gradient-to-br from-sky-50 to-sky-100 shadow-sm">
           <CardContent className="pt-6 pb-6">
             <div className="text-center">
@@ -276,17 +258,6 @@ export default function TeacherSummary() {
                   ? Math.round((summaryData.presentsCount / summaryData.totalEnfants) * 100)
                   : 0}
                 %
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 bg-gradient-to-br from-purple-50 to-purple-100 shadow-sm">
-          <CardContent className="pt-6 pb-6">
-            <div className="text-center">
-              <p className="text-xs font-medium text-gray-600 uppercase">{t("kpis.avgNapLabel")}</p>
-              <p className="text-4xl font-bold text-purple-700 mt-2">
-                {formatNap(summaryData.avgNapMinutes)}
               </p>
             </div>
           </CardContent>

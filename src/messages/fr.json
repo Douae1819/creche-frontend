@@ -87,8 +87,12 @@
       "nap": "Sieste",
       "appetite": "Appétit",
       "participation": "Participation",
-      "resumeNotAvailable": "Résumé pas encore disponible",
-      "resumeNotAvailableHint": "{label} — il n'y a pas encore de résumé publié pour cette date.",
+      "resumeNotAvailable": "—",
+      "resumeNotAvailableHint": "—",
+      "selectChild": "Enfant affiché",
+      "presenceOnlyLine": "Présence enregistrée : {status}.",
+      "resumeFallbackNotice": "Pas de saisie à la date choisie — affichage du résumé du {shown}.",
+      "classJournalFallbackNotice": "Message de classe : dernier disponible à cette date (pas de nouveau message ce jour-là).",
       "backToToday": "← Revenir à aujourd'hui",
       "messageClassTitle": "Message de la classe",
       "noMessageToday": "Aucun message pour aujourd'hui.",
@@ -700,8 +704,7 @@
       "back": "Retour",
       "kpis": {
         "presentLabel": "Présents",
-        "attendanceRateLabel": "Taux présence",
-        "avgNapLabel": "Sieste moyenne"
+        "attendanceRateLabel": "Taux présence"
       },
       "sections": {
         "appetiteTitle": "Appétit",

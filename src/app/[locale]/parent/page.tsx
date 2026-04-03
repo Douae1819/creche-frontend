@@ -9,6 +9,7 @@ import { use } from "react"
 import { Locale } from "@/lib/i18n/config"
 import { apiClient } from "@/lib/api"
 import { DailyResume } from "@/types/domain"
+import { formatLocalDateKey, safeDateForLocaleDisplay } from "@/lib/date-local"
 import { Home, CheckCircle2, Baby, Utensils, CalendarDays, ChevronLeft, ChevronRight, Pencil, Check, X, RefreshCw } from "lucide-react"
 
 type Tab = "home" | "presence" | "child" | "menu" | "events"
@@ -80,11 +81,10 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
   const [profileLoading, setProfileLoading] = useState(true)
   const [profileError, setProfileError] = useState<string | null>(null)
   const [dailyMessage, setDailyMessage] = useState<string | null>(null)
-  const [classJournalForSelectedDate, setClassJournalForSelectedDate] = useState<string | null>(null)
   const [passwordMessage, setPasswordMessage] = useState<string | null>(null)
   const [passwordError, setPasswordError] = useState<string | null>(null)
-  const [childDailyResume, setChildDailyResume] = useState<DailyResume | null>(null)
-  const [dailyResumeError, setDailyResumeError] = useState<string | null>(null)
+  const [dailyResumeToday, setDailyResumeToday] = useState<DailyResume | null>(null)
+  const [presenceOnToday, setPresenceOnToday] = useState<{ statut: string } | null>(null)
   const [presences, setPresences] = useState<any[]>([])
   const [presencePage, setPresencePage] = useState(1)
   const [presenceTotal, setPresenceTotal] = useState(0)
@@ -96,15 +96,62 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
 
   const todayDate = new Date()
   todayDate.setHours(0, 0, 0, 0)
-  const [selectedDate, setSelectedDate] = useState<Date>(todayDate)
-  const [dateDataLoading, setDateDataLoading] = useState(false)
+  const [todayResumeLoading, setTodayResumeLoading] = useState(false)
+  const [resumeRefreshTick, setResumeRefreshTick] = useState(0)
 
-  const selectedDateStr = selectedDate.toISOString().split("T")[0]
-  const isToday = selectedDate.getTime() === todayDate.getTime()
+  const profileRef = useRef<{ tuteurs?: any[]; telephone?: string; adresse?: string; prenom?: string | null } | null>(null)
+  const [enfantsInFamily, setEnfantsInFamily] = useState<any[]>([])
+  const STORAGE_ENFANT_ID = "petitspas-parent-selected-enfant-id"
 
-  const goToPrevDay = () => setSelectedDate(d => { const p = new Date(d); p.setDate(p.getDate() - 1); return p })
-  const goToNextDay = () => { if (!isToday) setSelectedDate(d => { const n = new Date(d); n.setDate(n.getDate() + 1); return n }) }
-  const goToToday = () => setSelectedDate(todayDate)
+  const applyEnfantFromServer = (enfant: any, profile: any) => {
+    setChild({
+      id: enfant.id,
+      classeId: enfant.classeId ?? null,
+      name: `${enfant.prenom ?? ""} ${enfant.nom ?? ""}`.trim() || t("ui.defaultChildName"),
+      class: enfant.classeNom ?? enfant.classeId ?? "",
+      birthdate: enfant.dateNaissance ?? null,
+      age: undefined,
+      avatar: "👧",
+      photoUrl: enfant.photoUrl ?? null,
+      status: undefined,
+      allergies: Array.isArray(enfant.allergies) ? enfant.allergies : [],
+      classeEnseignants: Array.isArray(enfant.classeEnseignants) ? enfant.classeEnseignants : [],
+      classeNbEleves: enfant.classeNbEleves ?? null,
+    })
+    if (enfant.profilSante) {
+      setSante(enfant.profilSante)
+      setSanteForm({
+        medecin: enfant.profilSante.medecin ?? "",
+        notes: enfant.profilSante.notes ?? "",
+        restrictionAlimentaire: enfant.profilSante.restrictionAlimentaire ?? "",
+        tags: Array.isArray(enfant.profilSante.tags) ? enfant.profilSante.tags : [],
+        allergies: Array.isArray(enfant.profilSante.allergies) ? enfant.profilSante.allergies.map((a: { nom: string; severite?: string }) => ({ nom: a.nom, severite: a.severite ?? "" })) : [],
+        intolerances: Array.isArray(enfant.profilSante.intolerances) ? enfant.profilSante.intolerances.map((i: { nom: string }) => ({ nom: i.nom })) : [],
+      })
+    } else {
+      setSante(null)
+      setSanteForm({ medecin: "", notes: "", restrictionAlimentaire: "", tags: [], allergies: [], intolerances: [] })
+    }
+    const delegations = Array.isArray(enfant.delegations) ? enfant.delegations : []
+    if (delegations.length > 0) {
+      setAuthorizedPersons(delegations.map((d: any) => ({ id: d.id, name: d.nom, role: d.relation ?? null, phone: d.telephone ?? null })))
+    } else if (Array.isArray(profile?.tuteurs)) {
+      setAuthorizedPersons(profile.tuteurs.map((tt: any) => ({ id: tt.id, name: `${tt.prenom ?? ""} ${tt.nom ?? ""}`.trim() || tt.email || "", role: tt.lien ?? null, phone: tt.telephone ?? null })))
+    }
+  }
+
+  const handleSelectChild = (id: string) => {
+    try {
+      localStorage.setItem(STORAGE_ENFANT_ID, id)
+    } catch { /* ignore */ }
+    const enfant = enfantsInFamily.find((e: any) => String(e.id) === id)
+    const profile = profileRef.current
+    if (!enfant || !profile) return
+    applyEnfantFromServer(enfant, profile)
+    setDailyResumeToday(null)
+    setPresenceOnToday(null)
+    setResumeRefreshTick(tk => tk + 1)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -113,45 +160,29 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
         setProfileLoading(true); setProfileError(null)
         const profileRes = await apiClient.getParentProfile()
         const profile = profileRes.data
-        const enfant = Array.isArray(profile?.enfants) && profile.enfants.length > 0 ? profile.enfants[0] : null
-        if (!enfant) { if (!cancelled) setProfileError(t("ui.noChildError")) }
-        else if (!cancelled) {
+        profileRef.current = profile
+        const enfants = Array.isArray(profile?.enfants) ? profile.enfants : []
+        setEnfantsInFamily(enfants)
+        if (!enfants.length) {
+          if (!cancelled) setProfileError(t("ui.noChildError"))
+          return
+        }
+        let enfant: any = enfants[0]
+        try {
+          const saved = typeof window !== "undefined" ? localStorage.getItem(STORAGE_ENFANT_ID) : null
+          if (saved && enfants.some((e: any) => String(e.id) === saved)) {
+            enfant = enfants.find((e: any) => String(e.id) === saved) ?? enfants[0]
+          }
+        } catch { /* ignore */ }
+        if (!cancelled) {
           const prenom = profile?.prenom ?? profile?.tuteurs?.[0]?.prenom ?? ""
           if (!cancelled) setParentPrenom(prenom)
           const tts = Array.isArray(profile?.tuteurs) ? profile.tuteurs : []
           if (!cancelled) setTuteurs(tts)
           if (!cancelled) setEditTelephone(profile?.telephone ?? tts[0]?.telephone ?? "")
           if (!cancelled) setEditAdresse(profile?.adresse ?? tts[0]?.adresse ?? "")
-          setChild({ id: enfant.id, classeId: enfant.classeId ?? null, name: `${enfant.prenom ?? ""} ${enfant.nom ?? ""}`.trim() || t("ui.defaultChildName"),
-            class: enfant.classeNom ?? enfant.classeId ?? "", birthdate: enfant.dateNaissance ?? null, age: undefined,
-            avatar: "👧", photoUrl: enfant.photoUrl ?? null, status: undefined,
-            allergies: Array.isArray(enfant.allergies) ? enfant.allergies : [],
-            classeEnseignants: Array.isArray(enfant.classeEnseignants) ? enfant.classeEnseignants : [],
-            classeNbEleves: enfant.classeNbEleves ?? null })
-          // Pre-populate health from profile response (available before backend deploy)
-          if (enfant.profilSante) {
-            setSante(enfant.profilSante)
-            setSanteForm({
-              medecin: enfant.profilSante.medecin ?? "",
-              notes: enfant.profilSante.notes ?? "",
-              restrictionAlimentaire: enfant.profilSante.restrictionAlimentaire ?? "",
-              tags: Array.isArray(enfant.profilSante.tags) ? enfant.profilSante.tags : [],
-              allergies: Array.isArray(enfant.profilSante.allergies) ? enfant.profilSante.allergies.map((a: {nom:string;severite?:string}) => ({ nom: a.nom, severite: a.severite ?? "" })) : [],
-              intolerances: Array.isArray(enfant.profilSante.intolerances) ? enfant.profilSante.intolerances.map((i: {nom:string}) => ({ nom: i.nom })) : [],
-            })
-          }
-          if (enfant.classeId) {
-            try {
-              const todayIso = new Date().toISOString().slice(0, 10)
-              const journalRes = await apiClient.getClassJournal(enfant.classeId as string, todayIso)
-              const journal = journalRes.data
-              if (!cancelled && journal) {
-                const fromObs = typeof journal.observations === "string" ? journal.observations : ""
-                const combined = [journal.activites, journal.apprentissages].filter((p: any) => typeof p === "string" && p.trim().length > 0).join(". ")
-                setDailyMessage(fromObs || combined || null)
-              }
-            } catch {}
-          }
+          applyEnfantFromServer(enfant, profile)
+          // Message du jour (classe) : chargé dans useEffect dédié + refresh / polling
           try {
               const menusRes = await apiClient.listMenus(1, 100)
               const rawMenus: any[] = menusRes.data?.data ?? menusRes.data?.items ?? (Array.isArray(menusRes.data) ? menusRes.data : [])
@@ -163,7 +194,7 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
               if (!cancelled) {
                 setWeekMenus(menusByDate)
                 const today = new Date()
-                const todayKey = today.toISOString().slice(0, 10)
+                const todayKey = formatLocalDateKey(today)
                 const todayTime = new Date(todayKey).getTime()
                 if (menusByDate[todayKey]) { setTodayMenu(menusByDate[todayKey]) }
                 else {
@@ -175,9 +206,6 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
                 }
               }
             } catch {}
-          const delegations = Array.isArray(enfant.delegations) ? enfant.delegations : []
-          if (delegations.length > 0) setAuthorizedPersons(delegations.map((d: any) => ({ id: d.id, name: d.nom, role: d.relation ?? null, phone: d.telephone ?? null })))
-          else if (Array.isArray(profile?.tuteurs)) setAuthorizedPersons(profile.tuteurs.map((tt: any) => ({ id: tt.id, name: `${tt.prenom ?? ""} ${tt.nom ?? ""}`.trim() || tt.email || "", role: tt.lien ?? null, phone: tt.telephone ?? null })))
           try {
             const eventsRes = await apiClient.listParentEvents({ page: 1, pageSize: 50 })
             const payload = eventsRes.data
@@ -204,60 +232,106 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
     return () => { cancelled = true }
   }, [locale, t, dateLocale])
 
-  // Load class journal for the selected date (used as fallback when child resume isn't available yet)
+  // Journal de classe du jour (carte Accueil) — rechargé au refresh / poll
   useEffect(() => {
     const classeId = child?.classeId
     if (!classeId) return
     let cancelled = false
-    async function loadClassJournalForDate() {
+    const todayKey = formatLocalDateKey(new Date())
+    async function loadTodayClassMessage() {
       try {
-        const res = await apiClient.getClassJournal(classeId as string, selectedDateStr)
-        const journal = res.data
+        const res = await apiClient.getClassJournal(classeId as string, todayKey)
+        const raw = res.data as Record<string, unknown> | null
+        if (raw && typeof raw === "object" && "empty" in raw && raw.empty === true) {
+          if (!cancelled) setDailyMessage(null)
+          return
+        }
+        const journal = (raw && typeof raw === "object" && "data" in raw && raw.data && typeof raw.data === "object" ? raw.data : raw) as {
+          observations?: string; activites?: string; apprentissages?: string
+        } | null
         const fromObs = typeof journal?.observations === "string" ? journal.observations : ""
         const combined = [journal?.activites, journal?.apprentissages]
           .filter((p: any) => typeof p === "string" && p.trim().length > 0)
           .join(". ")
-        if (!cancelled) setClassJournalForSelectedDate(fromObs || combined || null)
+        if (!cancelled) setDailyMessage(fromObs || combined || null)
       } catch {
-        if (!cancelled) setClassJournalForSelectedDate(null)
+        if (!cancelled) setDailyMessage(null)
       }
     }
-    loadClassJournalForDate()
+    void loadTodayClassMessage()
     return () => { cancelled = true }
-  }, [child?.classeId, selectedDateStr])
+  }, [child?.classeId, resumeRefreshTick])
 
-  const [resumeRefreshTick, setResumeRefreshTick] = useState(0)
   const refreshResumeRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  function parseResumeBody(data: unknown): DailyResume | null {
+    if (data == null || typeof data !== "object") return null
+    let cur: unknown = data
+    for (let depth = 0; depth < 6; depth++) {
+      if (!cur || typeof cur !== "object") return null
+      const layer = cur as Record<string, unknown>
+      if (layer.empty === true) return null
+      const inner = layer.data
+      if (inner !== null && typeof inner === "object" && !Array.isArray(inner)) {
+        cur = inner
+        continue
+      }
+      break
+    }
+    if (!cur || typeof cur !== "object" || Array.isArray(cur)) return null
+    const o = cur as Record<string, unknown>
+    if (o.empty === true) return null
+    const hasContent =
+      o.humeur != null ||
+      o.appetit != null ||
+      o.sieste != null ||
+      o.participation != null ||
+      (Array.isArray(o.observations) && o.observations.length > 0)
+    if (!hasContent) return null
+    return cur as unknown as DailyResume
+  }
 
   useEffect(() => {
     if (!child?.id) return
     let cancelled = false
-    async function loadDateData() {
-      setDateDataLoading(true)
-      setDailyResumeError(null)
+    async function loadTodayResume() {
+      setTodayResumeLoading(true)
+      const enfantId = String(child!.id)
+      const todayKey = formatLocalDateKey(new Date())
       try {
-        const resumeRes = await apiClient.getChildResume(child!.id as string, selectedDateStr)
-        if (!cancelled) setChildDailyResume(resumeRes.data)
-      } catch (err: any) {
-        if (!cancelled) { setChildDailyResume(null); const msg = err?.response?.data?.message; setDailyResumeError(typeof msg === "string" ? msg : null) }
-      } finally { if (!cancelled) setDateDataLoading(false) }
+        const [resumeRes, presRes] = await Promise.all([
+          apiClient.getChildResume(enfantId, todayKey),
+          apiClient.getChildPresences(enfantId, 1, 1, todayKey, todayKey).catch(() => null),
+        ])
+        if (cancelled) return
+        const parsed = parseResumeBody(resumeRes.data)
+        setDailyResumeToday(parsed)
+        const payload = presRes?.data as { data?: unknown[] } | undefined
+        const items = Array.isArray(payload?.data) ? payload.data : []
+        const row = items[0] as { statut?: string } | undefined
+        setPresenceOnToday(row?.statut ? { statut: row.statut } : null)
+      } catch {
+        if (!cancelled) {
+          setDailyResumeToday(null)
+          setPresenceOnToday(null)
+        }
+      } finally {
+        if (!cancelled) setTodayResumeLoading(false)
+      }
     }
-    void loadDateData()
+    void loadTodayResume()
     return () => { cancelled = true }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDateStr, child?.id, resumeRefreshTick])
+  }, [child?.id, resumeRefreshTick])
 
-  // Poll every 60 s when viewing today — teacher may save during the day
+  // Poll every 60 s — l’enseignant peut publier le résumé / message en cours de journée
   useEffect(() => {
     if (!child?.id) return
     if (refreshResumeRef.current) clearInterval(refreshResumeRef.current)
     refreshResumeRef.current = setInterval(() => {
-      const nowISO = new Date().toISOString().split("T")[0]
-      const viewingToday = selectedDateStr === nowISO
-      if (viewingToday) setResumeRefreshTick(t => t + 1)
+      setResumeRefreshTick(t => t + 1)
     }, 60_000)
     return () => { if (refreshResumeRef.current) clearInterval(refreshResumeRef.current) }
-  }, [child?.id, selectedDateStr])
+  }, [child?.id])
 
   useEffect(() => {
     if (!child?.id) return
@@ -353,66 +427,41 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
     { id: "events",   icon: <CalendarDays className="w-5 h-5" />,  label: t("nav.events") },
   ]
 
-  // ─── Date nav helper ──────────────────────────────────────────────────────
-  const DateNav = () => (
-    <div className="flex items-center gap-1">
-      <button type="button" onClick={goToPrevDay} className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-200 hover:bg-gray-100 text-gray-600">
-        <ChevronLeft className="w-4 h-4" />
-      </button>
-      <div className="text-center min-w-[110px]">
-        <p className="text-xs font-semibold" style={{ color: "#1A1A1A" }}>
-          {isToday ? t("ui.today") : selectedDate.toLocaleDateString(dateLocale, { weekday: "short", day: "2-digit", month: "short" })}
-        </p>
-      </div>
-      <button type="button" onClick={goToNextDay} disabled={isToday} className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-200 hover:bg-gray-100 text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed">
-        <ChevronRight className="w-4 h-4" />
-      </button>
-      {!isToday && <button type="button" onClick={goToToday} className="ml-1 text-xs hover:underline" style={{ color: "#FF6F61" }}>{t("ui.today")}</button>}
-    </div>
-  )
-
   // ─── Daily Resume Cards ───────────────────────────────────────────────────
-  const todayISO = todayDate.toISOString().split("T")[0]
+  const todayISO = formatLocalDateKey(todayDate)
 
-  // resumeData: the resume to show (null = not available / wrong date)
-  // forDate: ISO string of the date we want to display (today or selectedDate)
-  const ResumeEmpty = ({ forDate }: { forDate: string }) => {
-    const isTodayDate = forDate === todayISO
-    const label = isTodayDate
-      ? t("ui.today")
-      : new Date(forDate + "T12:00:00").toLocaleDateString(dateLocale, { weekday: "long", day: "2-digit", month: "long" })
+  const PresenceOnlyFallback = ({ forDate, statut }: { forDate: string; statut: string }) => {
+    const stLabel = statut === "Present" ? t("ui.statusPresent") : statut === "Absent" ? t("ui.statusAbsent") : statut
     return (
-      <div className="text-center py-6 space-y-2">
-        <span className="text-4xl">📋</span>
-        <p className="text-sm font-semibold text-gray-700">{t("ui.resumeNotAvailable")}</p>
-        <p className="text-xs text-gray-400">{t("ui.resumeNotAvailableHint", { label })}</p>
-        {!isTodayDate && (
-          <button type="button" onClick={goToToday} className="mt-1 text-xs font-medium hover:underline" style={{ color: "#FF6F61" }}>
-            {t("ui.backToToday")}
-          </button>
-        )}
+      <div className="rounded-xl p-3 border space-y-1" style={{ background: "#F0FDF4", borderColor: "#BBF7D0" }}>
+        <p className="text-xs text-gray-500 capitalize">
+          {new Date(`${forDate}T12:00:00`).toLocaleDateString(dateLocale, { weekday: "long", day: "2-digit", month: "long" })}
+        </p>
+        <p className="text-sm text-gray-800">✓ {t("ui.presenceOnlyLine", { status: stLabel })}</p>
       </div>
     )
   }
 
-  const ClassJournalFallback = ({ forDate, text }: { forDate: string; text: string }) => (
-    <div className="space-y-3">
-      <p className="text-xs text-gray-400 capitalize">
-        {new Date(forDate + "T12:00:00").toLocaleDateString(dateLocale, { weekday: "long", day: "2-digit", month: "long" })}
-      </p>
-      <div className="rounded-xl p-3 border" style={{ background: "rgba(174,223,247,0.18)", borderColor: "#AEDFF7" }}>
-        <p className="text-xs font-medium mb-1" style={{ color: "#1A1A1A" }}>📝 {t("ui.classJournalTitle")}</p>
-        <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{text}</p>
-      </div>
-    </div>
-  )
-
-  const ResumeCards = ({ resume }: { resume: typeof childDailyResume }) => {
+  const ResumeCards = ({ resume }: { resume: DailyResume | null }) => {
     if (!resume) return null
+    const dateForDisplay = safeDateForLocaleDisplay(resume.date as unknown, resume.requestedDate ?? null)
+    const dateLine =
+      dateForDisplay != null && !Number.isNaN(dateForDisplay.getTime())
+        ? dateForDisplay.toLocaleDateString(dateLocale, { weekday: "long", day: "2-digit", month: "long" })
+        : "—"
+    const shownForFallback =
+      dateForDisplay != null && !Number.isNaN(dateForDisplay.getTime())
+        ? dateForDisplay.toLocaleDateString(dateLocale, { weekday: "long", day: "numeric", month: "long" })
+        : "—"
     return (
       <div className="space-y-3">
+        {resume.isFallback && (
+          <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            {t("ui.resumeFallbackNotice", { shown: shownForFallback })}
+          </p>
+        )}
         <p className="text-xs text-gray-400 capitalize">
-          {new Date(resume.date).toLocaleDateString(dateLocale, { weekday: "long", day: "2-digit", month: "long" })}
+          {dateLine}
         </p>
         <div className="grid grid-cols-2 gap-3">
           {[
@@ -440,21 +489,6 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
     )
   }
 
-  // For Presence tab: shows selected date resume with loading state
-  const DailyResumeContent = () => (
-    <div>
-      {dateDataLoading ? (
-        <p className="text-sm text-gray-400 text-center py-6 animate-pulse">{t("ui.loading")}</p>
-      ) : childDailyResume ? (
-        <ResumeCards resume={childDailyResume} />
-      ) : classJournalForSelectedDate ? (
-        <ClassJournalFallback forDate={selectedDateStr} text={classJournalForSelectedDate} />
-      ) : (
-        <ResumeEmpty forDate={selectedDateStr} />
-      )}
-    </div>
-  )
-
   // ─── Tab: Home ────────────────────────────────────────────────────────────
   const HomeTab = () => (
     <div className="px-4 pt-4 pb-4 space-y-4">
@@ -471,41 +505,58 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
           <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center border-2 border-white/60" style={{ background: "white" }}>
             {child?.photoUrl ? <img src={child.photoUrl} alt={child.name} className="w-full h-full object-cover" /> : <span className="text-2xl">{child?.avatar ?? "👧"}</span>}
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 w-full">
             <p className="font-bold text-base truncate" style={{ color: "#1A1A1A" }}>{child?.name ?? ""}</p>
             <p className="text-sm truncate" style={{ color: "#1A1A1A", opacity: 0.65 }}>{child?.class}</p>
+            {enfantsInFamily.length > 1 && (
+              <div className="mt-3 pt-3 border-t border-black/5">
+                <label className="block text-xs font-medium mb-1.5" style={{ color: "#1A1A1A", opacity: 0.65 }}>{t("ui.selectChild")}</label>
+                <select
+                  value={String(child?.id ?? "")}
+                  onChange={e => handleSelectChild(e.target.value)}
+                  className="w-full text-sm rounded-xl border px-3 py-2 bg-white max-w-full"
+                  style={{ borderColor: "#C5E8F7", color: "#1A1A1A" }}
+                >
+                  {enfantsInFamily.map((e: any) => (
+                    <option key={e.id} value={String(e.id)}>
+                      {`${e.prenom ?? ""} ${e.nom ?? ""}`.trim() || t("ui.defaultChildName")}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Daily resume */}
-      <Card className="border shadow-sm rounded-2xl" style={{ borderColor: "#AEDFF7" }}>
-        <CardHeader className="pb-3 border-b" style={{ borderColor: "#AEDFF7" }}>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-bold text-gray-900">📋 {t("ui.dailySummaryTitle")}</CardTitle>
-            <button
-              type="button"
-              onClick={() => setResumeRefreshTick(tk => tk + 1)}
-              disabled={dateDataLoading}
-              className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-40"
-              title={t("ui.refreshTitle")}
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${dateDataLoading ? "animate-spin" : ""}`} />
-            </button>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-4">
-          {dateDataLoading ? (
-            <p className="text-sm text-gray-400 text-center py-6 animate-pulse">{t("ui.loading")}</p>
-          ) : childDailyResume ? (
-            <ResumeCards resume={childDailyResume} />
-          ) : dailyMessage ? (
-            <ClassJournalFallback forDate={todayISO} text={dailyMessage} />
-          ) : (
-            <ResumeEmpty forDate={todayISO} />
-          )}
-        </CardContent>
-      </Card>
+      {/* Résumé individuel (humeur, sieste…) + présence du jour — pas de doublon avec le message de classe */}
+      {(todayResumeLoading || dailyResumeToday || presenceOnToday) && (
+        <Card className="border shadow-sm rounded-2xl" style={{ borderColor: "#AEDFF7" }}>
+          <CardHeader className="pb-3 border-b" style={{ borderColor: "#AEDFF7" }}>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-bold text-gray-900">📋 {t("ui.dailySummaryTitle")}</CardTitle>
+              <button
+                type="button"
+                onClick={() => setResumeRefreshTick(tk => tk + 1)}
+                disabled={todayResumeLoading}
+                className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-40"
+                title={t("ui.refreshTitle")}
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${todayResumeLoading ? "animate-spin" : ""}`} />
+              </button>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-4">
+            {todayResumeLoading ? (
+              <p className="text-sm text-gray-400 text-center py-6 animate-pulse">{t("ui.loading")}</p>
+            ) : dailyResumeToday ? (
+              <ResumeCards resume={dailyResumeToday} />
+            ) : (
+              presenceOnToday && <PresenceOnlyFallback forDate={todayISO} statut={presenceOnToday.statut} />
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Class message */}
       <Card className="border shadow-sm rounded-2xl" style={{ borderColor: "#AEDFF7" }}>
@@ -541,7 +592,7 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
 
   // ─── Tab: Presence ────────────────────────────────────────────────────────
   const PresenceTab = () => {
-    const todayStr = new Date().toISOString().split("T")[0]
+    const todayStr = formatLocalDateKey(new Date())
     // For today's status: check if current filter month matches today, then look in loaded data
     const todayPresence = presences.find((p: any) => (p.date ?? "").slice(0, 10) === todayStr)
     const statut = todayPresence?.statut
@@ -575,17 +626,6 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
             </div>
           </div>
         </div>
-
-        {/* Resume du jour */}
-        <Card className="border shadow-sm rounded-2xl" style={{ borderColor: "#AEDFF7" }}>
-          <CardHeader className="pb-3 border-b" style={{ borderColor: "#AEDFF7" }}>
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <CardTitle className="text-sm font-bold text-gray-900 flex-shrink-0">{t("ui.dailySummaryTitle")}</CardTitle>
-              <DateNav />
-            </div>
-          </CardHeader>
-          <CardContent className="pt-4"><DailyResumeContent /></CardContent>
-        </Card>
 
         {/* Attendance history with filter + pagination */}
         <Card className="border border-gray-100 shadow-sm rounded-2xl">

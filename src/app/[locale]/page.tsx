@@ -33,56 +33,52 @@ export default function Home({ params }: { params: Promise<{ locale: Locale }> }
     const emailValue = email.trim()
 
     try {
-      // 1) Essayer d'abord le login ADMIN
+      // 1) D’abord parent / enseignant / admin en base (`login-user`) — évite un 400 inutile sur `/auth/login` pour la majorité des comptes
       try {
-        const { data } = await apiClient.loginAdmin(emailValue, password)
+        const { data } = await apiClient.loginUser(emailValue, password)
 
-        const { accessToken, refreshToken } = data as {
+        const { accessToken, refreshToken, role } = data as {
           accessToken: string
           refreshToken?: string
+          role?: string
         }
-        clearAuthStore() // Purge previous session from localStorage
+        const normalizedRole = String(role || "").toUpperCase()
+
+        clearAuthStore()
         Cookies.set("token", accessToken, { expires: 7 })
         Cookies.set("auth_token", accessToken, { expires: 7 })
         if (refreshToken) Cookies.set("refresh_token", refreshToken, { expires: 7 })
 
-        router.push(`/${currentLocale}/admin`)
+        if (normalizedRole === "PARENT") {
+          router.push(`/${currentLocale}/parent`)
+        } else if (normalizedRole === "ENSEIGNANT") {
+          router.push(`/${currentLocale}/teacher`)
+        } else if (normalizedRole === "ADMIN" || normalizedRole === "SUPER_ADMIN") {
+          router.push(`/${currentLocale}/admin`)
+        } else {
+          router.push(`/${currentLocale}`)
+        }
         return
       } catch (error) {
-        // Si ce n'est pas une erreur "auth" claire, on la remonte
         const status = (error as AxiosError).response?.status
         if (status && status !== 400 && status !== 401 && status !== 403) {
           throw error
         }
-        // Sinon on continue avec loginUser
       }
 
-      // 2) Essayer le loginUser (parent / enseignant / admin via cet endpoint)
-      const { data } = await apiClient.loginUser(emailValue, password)
+      // 2) Super-admin fichier .env uniquement (`/auth/login`, pas en base utilisateurs)
+      const { data } = await apiClient.loginAdmin(emailValue, password)
 
-      const { accessToken, refreshToken, role } = data as {
+      const { accessToken, refreshToken } = data as {
         accessToken: string
         refreshToken?: string
-        role?: string
       }
-      const normalizedRole = String(role || "").toUpperCase()
-
-      clearAuthStore() // Purge previous session from localStorage
+      clearAuthStore()
       Cookies.set("token", accessToken, { expires: 7 })
       Cookies.set("auth_token", accessToken, { expires: 7 })
       if (refreshToken) Cookies.set("refresh_token", refreshToken, { expires: 7 })
 
-      // Redirection selon le rôle
-      if (normalizedRole === "PARENT") {
-        router.push(`/${currentLocale}/parent`)
-      } else if (normalizedRole === "ENSEIGNANT") {
-        router.push(`/${currentLocale}/teacher`)
-      } else if (normalizedRole === "ADMIN" || normalizedRole === "SUPER_ADMIN") {
-        router.push(`/${currentLocale}/admin`)
-      } else {
-        // Fallback : page d accueil locale
-        router.push(`/${currentLocale}`)
-      }
+      router.push(`/${currentLocale}/admin`)
     } catch (error) {
       const message =
         error instanceof AxiosError

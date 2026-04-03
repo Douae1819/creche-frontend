@@ -87,8 +87,12 @@
       "nap": "القيلولة",
       "appetite": "الشهية",
       "participation": "المشاركة",
-      "resumeNotAvailable": "الملخص غير متوفر بعد",
-      "resumeNotAvailableHint": "{label} — لا يوجد ملخص منشور لهذا التاريخ بعد.",
+      "resumeNotAvailable": "—",
+      "resumeNotAvailableHint": "—",
+      "selectChild": "الطفل المعروض",
+      "presenceOnlyLine": "تم تسجيل الحضور: {status}.",
+      "resumeFallbackNotice": "لا يوجد إدخال في التاريخ المختار — عرض ملخص {shown}.",
+      "classJournalFallbackNotice": "آخر رسالة متاحة لهذا التاريخ (لا رسالة جديدة في ذلك اليوم).",
       "backToToday": "← العودة إلى اليوم",
       "messageClassTitle": "رسالة الفصل",
       "noMessageToday": "لا توجد رسالة لهذا اليوم.",
@@ -700,8 +704,7 @@
       "back": "رجوع",
       "kpis": {
         "presentLabel": "الحاضرون",
-        "attendanceRateLabel": "نسبة الحضور",
-        "avgNapLabel": "متوسط القيلولة"
+        "attendanceRateLabel": "نسبة الحضور"
       },
       "sections": {
         "appetiteTitle": "الشهية",

@@ -33,8 +33,6 @@ export default function TeacherSummary() {
     excellente: 6,
   })
 
-  const avgNap = "1h15"
-
   return (
     <div className="space-y-6 max-w-7xl">
       {/* Header */}
@@ -165,21 +163,6 @@ export default function TeacherSummary() {
                 </div>
               </div>
             ))}
-          </CardContent>
-        </Card>
-
-        {/* Nap Average */}
-        <Card className="border border-gray-200 shadow-sm">
-          <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-transparent pb-4">
-            <CardTitle className="flex items-center gap-2 text-base font-bold text-gray-900">
-              <span>😴</span> Sieste moyenne
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <div className="text-center">
-              <p className="text-5xl font-bold text-purple-600">{avgNap}</p>
-              <p className="text-sm text-gray-600 mt-2">durée moyenne par enfant</p>
-            </div>
           </CardContent>
         </Card>
       </div>

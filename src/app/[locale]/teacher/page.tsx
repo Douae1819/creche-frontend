@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label"
 import Link from "next/link"
 import { useTranslations } from "next-intl"
 import { apiClient } from "@/lib/api"
+import { formatLocalDateKey } from "@/lib/date-local"
 import { CheckCircle, XCircle, LayoutGrid, User } from "lucide-react"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -90,7 +91,7 @@ export default function TeacherDashboard() {
   const [passwordError,   setPasswordError]   = useState<string | null>(null)
 
   const currentChild = children[currentChildIndex] ?? null
-  const today = new Date().toISOString().slice(0, 10)
+  const today = formatLocalDateKey(new Date())
   const now   = new Date()
 
   // Per-child form helpers
@@ -257,7 +258,7 @@ export default function TeacherDashboard() {
         // CREATE new resume
         const res = await apiClient.createResume({
           enfantId: currentChild.id,
-          date: `${today}T00:00:00.000Z`,
+          date: today,
           ...resumePayload,
         })
         const createdId = res.data?.id ?? res.data?.resumeId ?? null
