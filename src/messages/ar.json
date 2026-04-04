@@ -48,6 +48,8 @@
       "phoneLabel": "الهاتف",
       "authorizedPersonsTitle": "الأشخاص المصرح لهم",
       "securityTitle": "الأمان",
+      "passwordCardTitle": "كلمة المرور",
+      "editPassword": "تعديل",
       "changePasswordCta": "تغيير كلمة المرور",
       "passwordChanged": "تم تغيير كلمة المرور بنجاح!",
       "passwordMismatch": "كلمتا المرور غير متطابقتين!",
@@ -765,7 +767,25 @@
       },
       "prev": "السابق",
       "next": "التالي",
-      "summaryCta": "ملخص اليوم"
+      "summaryCta": "ملخص اليوم",
+      "accountMenu": {
+        "changePassword": "تغيير كلمة المرور",
+        "oldPassword": "كلمة المرور الحالية",
+        "newPassword": "كلمة المرور الجديدة",
+        "confirmPassword": "تأكيد",
+        "submit": "تأكيد",
+        "passwordChanged": "تم تغيير كلمة المرور",
+        "passwordMismatch": "كلمتا المرور غير متطابقتين",
+        "passwordError": "تعذر تغيير كلمة المرور"
+      }
+    },
+    "account": {
+      "title": "حسابي",
+      "back": "العودة إلى لوحة التحكم",
+      "saving": "جارٍ الحفظ…",
+      "errors": {
+        "required": "يرجى تعبئة جميع الحقول."
+      }
     }
   }
 }

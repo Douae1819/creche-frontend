@@ -48,6 +48,8 @@
       "phoneLabel": "Téléphone",
       "authorizedPersonsTitle": "Personnes autorisées",
       "securityTitle": "Sécurité",
+      "passwordCardTitle": "Mot de passe",
+      "editPassword": "Modifier",
       "changePasswordCta": "Changer le mot de passe",
       "passwordChanged": "Mot de passe modifié avec succès !",
       "passwordMismatch": "Les mots de passe ne correspondent pas !",
@@ -765,7 +767,25 @@
       },
       "prev": "Précédent",
       "next": "Suivant",
-      "summaryCta": "Résumé jour"
+      "summaryCta": "Résumé jour",
+      "accountMenu": {
+        "changePassword": "Changer mon mot de passe",
+        "oldPassword": "Ancien mot de passe",
+        "newPassword": "Nouveau mot de passe",
+        "confirmPassword": "Confirmation",
+        "submit": "Valider",
+        "passwordChanged": "Mot de passe modifié",
+        "passwordMismatch": "Les mots de passe ne correspondent pas",
+        "passwordError": "Erreur lors du changement de mot de passe"
+      }
+    },
+    "account": {
+      "title": "Mon compte",
+      "back": "Retour au tableau de bord",
+      "saving": "Enregistrement…",
+      "errors": {
+        "required": "Veuillez remplir tous les champs."
+      }
     }
   }
 }

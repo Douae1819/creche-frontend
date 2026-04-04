@@ -17,7 +17,6 @@ function readJwtUserId(): string {
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import Link from "next/link"
 import { useTranslations } from "next-intl"
 import { apiClient } from "@/lib/api"
@@ -84,11 +83,6 @@ export default function TeacherDashboard() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [savingResume,  setSavingResume]  = useState(false)
   const [viewMode, setViewMode] = useState<"individual" | "overview">("individual")
-
-  const [showPasswordForm, setShowPasswordForm] = useState(false)
-  const [passwords, setPasswords] = useState({ current: "", new: "", confirm: "" })
-  const [passwordMessage, setPasswordMessage] = useState<string | null>(null)
-  const [passwordError,   setPasswordError]   = useState<string | null>(null)
 
   const currentChild = children[currentChildIndex] ?? null
   const today = formatLocalDateKey(new Date())
@@ -296,18 +290,6 @@ export default function TeacherDashboard() {
     } finally {
       setSavingResume(false)
     }
-  }
-
-  const handlePasswordChange = async () => {
-    if (passwords.new !== passwords.confirm) { setPasswordError("Les mots de passe ne correspondent pas"); return }
-    try {
-      await apiClient.changeAuthPassword(passwords.current, passwords.new, passwords.confirm)
-      setPasswordMessage("Mot de passe changé avec succès")
-      setPasswordError(null)
-      setPasswords({ current: "", new: "", confirm: "" })
-      setShowPasswordForm(false)
-      setTimeout(() => setPasswordMessage(null), 3000)
-    } catch { setPasswordError("Erreur lors du changement de mot de passe") }
   }
 
   const handleNext = () => {
@@ -711,32 +693,6 @@ export default function TeacherDashboard() {
             <span className="hidden sm:inline">{t("next")} </span>→
           </Button>
         )}
-      </div>
-
-      {/* Security */}
-      <div className="mt-6">
-        <Card className="border border-gray-200 shadow-sm rounded-2xl max-w-3xl mx-auto">
-          <CardContent className="pt-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold">Sécurité</h3>
-              <Button variant="outline" size="sm" onClick={() => setShowPasswordForm(v => !v)}>
-                Changer mon mot de passe
-              </Button>
-            </div>
-            {passwordMessage && <div className="rounded-md bg-emerald-50 border border-emerald-200 px-3 py-2 text-sm text-emerald-800">{passwordMessage}</div>}
-            {passwordError   && <div className="rounded-md bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">{passwordError}</div>}
-            {showPasswordForm && (
-              <div className="grid gap-3 md:grid-cols-3">
-                <div><Label>Ancien mot de passe</Label><Input type="password" value={passwords.current} onChange={e => setPasswords(p => ({ ...p, current: e.target.value }))} /></div>
-                <div><Label>Nouveau mot de passe</Label><Input type="password" value={passwords.new} onChange={e => setPasswords(p => ({ ...p, new: e.target.value }))} /></div>
-                <div><Label>Confirmation</Label><Input type="password" value={passwords.confirm} onChange={e => setPasswords(p => ({ ...p, confirm: e.target.value }))} /></div>
-                <div className="md:col-span-3">
-                  <Button onClick={handlePasswordChange} className="bg-emerald-500 hover:bg-emerald-600 text-white">Valider</Button>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </div>
     </div>
   )

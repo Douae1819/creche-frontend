@@ -902,14 +902,19 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
       {/* Password change */}
       <Card className="border border-gray-100 shadow-sm rounded-2xl">
         <CardHeader className="pb-3 border-b border-gray-50">
-          <CardTitle className="text-sm font-bold text-gray-900">🔐 {t("ui.securityTitle")}</CardTitle>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="text-sm font-bold text-gray-900">🔐 {t("profile.passwordCardTitle")}</CardTitle>
+            {!showPasswordForm && (
+              <Button onClick={() => setShowPasswordForm(true)} variant="outline" size="sm" className="shrink-0 border-gray-200">
+                {t("profile.editPassword")}
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="pt-4">
           {passwordMessage && <div className="mb-3 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">{passwordMessage}</div>}
           {passwordError && <div className="mb-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{passwordError}</div>}
-          {!showPasswordForm ? (
-            <Button onClick={() => setShowPasswordForm(true)} variant="outline" size="sm" className="w-full border-gray-200">{t("profile.changePasswordCta")}</Button>
-          ) : (
+          {!showPasswordForm ? null : (
             <div className="space-y-3">
               {[
                 { key: "current" as const, label: t("profile.currentPasswordLabel"), ph: "••••••••" },

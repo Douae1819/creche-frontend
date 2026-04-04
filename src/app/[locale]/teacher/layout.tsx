@@ -1,12 +1,11 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { usePathname, useRouter } from "next/navigation"
 import { useTranslations } from "next-intl"
-import { LogOut, ChevronDown } from "lucide-react"
+import { TeacherAccountMenu } from "@/components/layout/teacher-account-menu"
 
 export default function TeacherLayout({
   children,
@@ -16,8 +15,6 @@ export default function TeacherLayout({
   const pathname = usePathname()
   const router = useRouter()
   const t = useTranslations()
-  const [menuOpen, setMenuOpen] = useState(false)
-
   const isArabic = pathname?.startsWith("/ar")
   const currentLocale = isArabic ? "ar" : "fr"
   const currentLabel = isArabic ? "AR" : "FR"
@@ -76,32 +73,7 @@ export default function TeacherLayout({
             >
               {currentLabel} • {nextLabel}
             </Button>
-            {/* Profile menu — logout protected behind click */}
-            <div className="relative">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setMenuOpen(v => !v)}
-                className="flex items-center gap-1"
-              >
-                {t("common.account") || "Mon compte"}
-                <ChevronDown className="w-3 h-3" />
-              </Button>
-              {menuOpen && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-                  <div className="absolute right-0 top-10 z-20 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[160px]">
-                    <button
-                      onClick={() => { setMenuOpen(false); handleLogout() }}
-                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                    >
-                      <LogOut className="w-4 h-4" />
-                      {t("common.logout")}
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
+            <TeacherAccountMenu onLogout={handleLogout} />
           </div>
         </div>
       </header>
