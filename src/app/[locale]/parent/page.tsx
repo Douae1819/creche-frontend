@@ -14,6 +14,52 @@ import { Home, CheckCircle2, Baby, Utensils, CalendarDays, ChevronLeft, ChevronR
 
 type Tab = "home" | "presence" | "child" | "menu" | "events"
 
+/** Affichage parent : libellés + emoji (enums API ↔ saisie enseignant). */
+function parentResumeAppetit(v?: string | null): { emoji: string; text: string } {
+  switch (v) {
+    case "Excellent": return { emoji: "😊", text: "Excellent" }
+    case "Bon": return { emoji: "🙂", text: "Bien" }
+    case "Moyen": return { emoji: "😐", text: "Moyen" }
+    case "Faible": return { emoji: "😕", text: "Mal" }
+    case "Refus": return { emoji: "🚫", text: "Refus" }
+    default: return { emoji: "❓", text: v && String(v).trim() ? String(v) : "—" }
+  }
+}
+
+function parentResumeHumeur(v?: string | null): { emoji: string; text: string } {
+  switch (v) {
+    case "Excellent": return { emoji: "😊", text: "Excellente" }
+    case "Bon": return { emoji: "🙂", text: "Bonne" }
+    case "Moyen": return { emoji: "😐", text: "Moyenne" }
+    case "Difficile":
+    case "Tres_difficile": return { emoji: "😟", text: "Difficile" }
+    default: return { emoji: "❓", text: v && String(v).trim() ? String(v) : "—" }
+  }
+}
+
+/** API : Courte→Moyen, Moyenne→Bon, Longue→Excellent (voir enseignant). */
+function parentResumeSieste(v?: string | null): { emoji: string; text: string } {
+  switch (v) {
+    case "Excellent": return { emoji: "😴", text: "Longue" }
+    case "Bon": return { emoji: "😴", text: "Moyenne" }
+    case "Moyen": return { emoji: "😴", text: "Courte" }
+    case "Difficile": return { emoji: "😟", text: "Difficile" }
+    case "Pas_de_sieste": return { emoji: "🚫", text: "Pas de sieste" }
+    default: return { emoji: "❓", text: v && String(v).trim() ? String(v) : "—" }
+  }
+}
+
+function parentResumeParticipation(v?: string | null): { emoji: string; text: string } {
+  switch (v) {
+    case "Excellent": return { emoji: "🌟", text: "Excellente" }
+    case "Bon": return { emoji: "✨", text: "Bonne" }
+    case "Moyen": return { emoji: "😐", text: "Moyenne" }
+    case "Faible": return { emoji: "😕", text: "Faible" }
+    case "Absent": return { emoji: "➖", text: "Absent" }
+    default: return { emoji: "❓", text: v && String(v).trim() ? String(v) : "—" }
+  }
+}
+
 export default function ParentDashboard({ params }: { params: Promise<{ locale: Locale }> }) {
   const resolvedParams = use(params)
   const locale = resolvedParams.locale
@@ -281,12 +327,29 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
     if (!cur || typeof cur !== "object" || Array.isArray(cur)) return null
     const o = cur as Record<string, unknown>
     if (o.empty === true) return null
+
+    // Normaliser observations (string, objets { observation }, etc.)
+    let obsList: string[] = []
+    if (Array.isArray(o.observations)) {
+      obsList = o.observations.map((item: unknown) => {
+        if (typeof item === "string") return item
+        if (item && typeof item === "object" && "observation" in (item as object)) {
+          const ob = (item as { observation?: unknown }).observation
+          return typeof ob === "string" ? ob : ""
+        }
+        return ""
+      }).filter((s: string) => s.trim().length > 0)
+    } else if (typeof o.observations === "string" && o.observations.trim()) {
+      obsList = [o.observations.trim()]
+    }
+    o.observations = obsList
+
     const hasContent =
       o.humeur != null ||
       o.appetit != null ||
       o.sieste != null ||
       o.participation != null ||
-      (Array.isArray(o.observations) && o.observations.length > 0)
+      obsList.length > 0
     if (!hasContent) return null
     return cur as unknown as DailyResume
   }
@@ -444,15 +507,32 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
 
   const ResumeCards = ({ resume }: { resume: DailyResume | null }) => {
     if (!resume) return null
-    const dateForDisplay = safeDateForLocaleDisplay(resume.date as unknown, resume.requestedDate ?? null)
+    const dRaw = resume.date as unknown
+    const ymdPrefer =
+      resume.requestedDate ??
+      (typeof dRaw === "string" ? dRaw.slice(0, 10) : dRaw instanceof Date ? formatLocalDateKey(dRaw) : null)
+    const dateForDisplay = safeDateForLocaleDisplay(resume.date as unknown, ymdPrefer)
     const dateLine =
       dateForDisplay != null && !Number.isNaN(dateForDisplay.getTime())
-        ? dateForDisplay.toLocaleDateString(dateLocale, { weekday: "long", day: "2-digit", month: "long" })
+        ? dateForDisplay.toLocaleDateString(dateLocale, { weekday: "long", day: "numeric", month: "long" })
         : "—"
     const shownForFallback =
       dateForDisplay != null && !Number.isNaN(dateForDisplay.getTime())
         ? dateForDisplay.toLocaleDateString(dateLocale, { weekday: "long", day: "numeric", month: "long" })
         : "—"
+
+    const appet = parentResumeAppetit(resume.appetit as string | undefined)
+    const hum = parentResumeHumeur(resume.humeur as string | undefined)
+    const si = parentResumeSieste(resume.sieste as string | undefined)
+    const part = parentResumeParticipation(resume.participation as string | undefined)
+
+    const metricRows = [
+      { label: t("ui.appetite"), ...appet, color: "#FFF4ED", textColor: "#D97706" },
+      { label: t("ui.mood"), ...hum, color: "#EBF7FD", textColor: "#1A73A7" },
+      { label: t("ui.nap"), ...si, color: "#F0EEFF", textColor: "#5B4FCF" },
+      { label: t("ui.participation"), ...part, color: "#F0FDF4", textColor: "#16A34A" },
+    ]
+
     return (
       <div className="space-y-3">
         {resume.isFallback && (
@@ -460,20 +540,15 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
             {t("ui.resumeFallbackNotice", { shown: shownForFallback })}
           </p>
         )}
-        <p className="text-xs text-gray-400 capitalize">
+        <p className="text-xs text-gray-500 capitalize">
           {dateLine}
         </p>
         <div className="grid grid-cols-2 gap-3">
-          {[
-            { emoji: "🙂", label: t("ui.mood"),       value: resume.humeur,        color: "#EBF7FD", textColor: "#1A73A7" },
-            { emoji: "😴", label: t("ui.nap"),        value: resume.sieste,        color: "#F0EEFF", textColor: "#5B4FCF" },
-            { emoji: "🍽️", label: t("ui.appetite"),       value: resume.appetit,       color: "#FFF4ED", textColor: "#D97706" },
-            { emoji: "✨", label: t("ui.participation"), value: resume.participation,  color: "#F0FDF4", textColor: "#16A34A" },
-          ].map(item => (
+          {metricRows.map(item => (
             <div key={item.label} className="rounded-xl p-3 flex flex-col gap-1" style={{ background: item.color, border: "1px solid rgba(0,0,0,0.06)" }}>
-              <span className="text-xl">{item.emoji}</span>
+              <span className="text-xl" aria-hidden>{item.emoji}</span>
               <p className="text-xs text-gray-500">{item.label}</p>
-              <p className="text-sm font-bold" style={{ color: item.textColor }}>{item.value ?? "—"}</p>
+              <p className="text-sm font-bold" style={{ color: item.textColor }}>{item.text}</p>
             </div>
           ))}
         </div>
@@ -529,34 +604,37 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
         </div>
       </div>
 
-      {/* Résumé individuel (humeur, sieste…) + présence du jour — pas de doublon avec le message de classe */}
-      {(todayResumeLoading || dailyResumeToday || presenceOnToday) && (
-        <Card className="border shadow-sm rounded-2xl" style={{ borderColor: "#AEDFF7" }}>
-          <CardHeader className="pb-3 border-b" style={{ borderColor: "#AEDFF7" }}>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-bold text-gray-900">📋 {t("ui.dailySummaryTitle")}</CardTitle>
-              <button
-                type="button"
-                onClick={() => setResumeRefreshTick(tk => tk + 1)}
-                disabled={todayResumeLoading}
-                className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-40"
-                title={t("ui.refreshTitle")}
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${todayResumeLoading ? "animate-spin" : ""}`} />
-              </button>
+      {/* Résumé individuel (humeur, sieste…) + présence du jour */}
+      <Card className="border shadow-sm rounded-2xl" style={{ borderColor: "#AEDFF7" }}>
+        <CardHeader className="pb-3 border-b" style={{ borderColor: "#AEDFF7" }}>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-bold text-gray-900">📋 {t("ui.dailySummaryTitle")}</CardTitle>
+            <button
+              type="button"
+              onClick={() => setResumeRefreshTick(tk => tk + 1)}
+              disabled={todayResumeLoading}
+              className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-40"
+              title={t("ui.refreshTitle")}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${todayResumeLoading ? "animate-spin" : ""}`} />
+            </button>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-4">
+          {todayResumeLoading ? (
+            <p className="text-sm text-gray-400 text-center py-6 animate-pulse">{t("ui.loading")}</p>
+          ) : dailyResumeToday ? (
+            <ResumeCards resume={dailyResumeToday} />
+          ) : presenceOnToday ? (
+            <div className="space-y-2">
+              <PresenceOnlyFallback forDate={todayISO} statut={presenceOnToday.statut} />
+              <p className="text-xs text-gray-500">{t("ui.resumePendingFromTeacher")}</p>
             </div>
-          </CardHeader>
-          <CardContent className="pt-4">
-            {todayResumeLoading ? (
-              <p className="text-sm text-gray-400 text-center py-6 animate-pulse">{t("ui.loading")}</p>
-            ) : dailyResumeToday ? (
-              <ResumeCards resume={dailyResumeToday} />
-            ) : (
-              presenceOnToday && <PresenceOnlyFallback forDate={todayISO} statut={presenceOnToday.statut} />
-            )}
-          </CardContent>
-        </Card>
-      )}
+          ) : (
+            <p className="text-sm text-gray-500 text-center py-4">{t("ui.dailySummaryEmpty")}</p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Class message */}
       <Card className="border shadow-sm rounded-2xl" style={{ borderColor: "#AEDFF7" }}>
@@ -671,7 +749,7 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
               <div className="space-y-1">
                 {presences.map((p: any, i: number) => {
                   const d = (p.date ?? "").slice(0, 10)
-                  const label = d ? new Date(d).toLocaleDateString(dateLocale, { weekday: "short", day: "2-digit", month: "short" }) : "—"
+                  const label = d ? new Date(`${d}T12:00:00`).toLocaleDateString(dateLocale, { weekday: "short", day: "2-digit", month: "short" }) : "—"
                   const stLabel = p.statut === "Present" ? t("ui.statusPresent") : p.statut === "Absent" ? t("ui.statusAbsent") : (p.statut ?? "—")
                   return (
                     <div key={i} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">

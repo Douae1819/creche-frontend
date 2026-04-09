@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { SidebarNew } from "@/components/layout/sidebar-new";
-import { Pencil, X, Plus, Trash2, Save, ChevronLeft, ChevronRight } from "lucide-react";
+import { Pencil, X, Plus, Trash2, Save, ChevronLeft } from "lucide-react";
 
 export default function EnfantDetailPage({
   params,
@@ -39,13 +39,6 @@ export default function EnfantDetailPage({
   const [delSaving, setDelSaving]     = useState(false);
   const [delErr, setDelErr]           = useState<string | null>(null);
 
-  // ── Presences ─────────────────────────────────────────────────────────────
-  const [presences, setPresences]         = useState<any[]>([]);
-  const [presenceLoading, setPresenceLoading] = useState(false);
-  const [presencePage, setPresencePage]   = useState(1);
-  const [presenceTotal, setPresenceTotal] = useState(0);
-  const presencePageSize = 10;
-
   // ── Load data ─────────────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
@@ -69,24 +62,6 @@ export default function EnfantDetailPage({
     load();
     return () => { cancelled = true; };
   }, [id]);
-
-  // ── Load presences ────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!id) return;
-    let cancelled = false;
-    setPresenceLoading(true);
-    apiClient.getChildPresences(id, presencePage, presencePageSize)
-      .then((res: any) => {
-        if (cancelled) return;
-        const payload = res.data;
-        const items = payload?.data ?? payload?.items ?? (Array.isArray(payload) ? payload : []);
-        setPresences(Array.isArray(items) ? items : []);
-        setPresenceTotal(payload?.pagination?.total ?? payload?.total ?? items.length);
-      })
-      .catch(() => { if (!cancelled) setPresences([]); })
-      .finally(() => { if (!cancelled) setPresenceLoading(false); });
-    return () => { cancelled = true; };
-  }, [id, presencePage]);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   const openEdit = () => {
@@ -183,10 +158,6 @@ export default function EnfantDetailPage({
   const inscription  = Array.isArray(enfant.inscriptions) && enfant.inscriptions.length > 0 ? enfant.inscriptions[0] : null;
   const payload      = inscription?.payload ?? null;
   const santePayload = payload?.sante ?? null;
-
-  const presenceTotalPages = Math.max(1, Math.ceil(presenceTotal / presencePageSize));
-  const nbPresent = presences.filter(p => p.statut === "Present").length;
-  const nbAbsent  = presences.filter(p => p.statut === "Absent").length;
 
   return (
     <div className="min-h-screen bg-gray-50 flex overflow-x-hidden">
@@ -338,73 +309,6 @@ export default function EnfantDetailPage({
 
             {!profilSante && allergies.length === 0 && intolerances.length === 0 && tags.length === 0 && !santePayload && (
               <p className="text-sm text-muted-foreground">Aucune information de santé.</p>
-            )}
-          </Card>
-
-          {/* ── Présences ──────────────────────────────────────────────── */}
-          <Card className="p-4 sm:p-5">
-            <h2 className="text-base font-semibold mb-3">📅 Historique des présences</h2>
-
-            {/* Mini stats */}
-            {(nbPresent > 0 || nbAbsent > 0) && (
-              <div className="flex gap-2 mb-4">
-                <div className="flex-1 rounded-xl p-2.5 text-center bg-emerald-50 border border-emerald-200">
-                  <p className="text-xl font-bold text-emerald-700">{nbPresent}</p>
-                  <p className="text-xs text-emerald-600">Présent</p>
-                </div>
-                <div className="flex-1 rounded-xl p-2.5 text-center bg-red-50 border border-red-200">
-                  <p className="text-xl font-bold text-red-600">{nbAbsent}</p>
-                  <p className="text-xs text-red-500">Absent</p>
-                </div>
-                <div className="flex-1 rounded-xl p-2.5 text-center bg-gray-50 border border-gray-200">
-                  <p className="text-xl font-bold text-gray-700">{presenceTotal}</p>
-                  <p className="text-xs text-gray-500">Total</p>
-                </div>
-              </div>
-            )}
-
-            {presenceLoading ? (
-              <p className="text-sm text-center text-muted-foreground py-6 animate-pulse">Chargement…</p>
-            ) : presences.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-6">Aucune présence enregistrée.</p>
-            ) : (
-              <div className="space-y-1">
-                {presences.map((p: any, i: number) => {
-                  const d = (p.date ?? "").slice(0, 10);
-                  const label = d ? new Date(d + "T12:00:00").toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "short", year: "2-digit" }) : "—";
-                  return (
-                    <div key={i} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
-                      <p className="text-sm text-gray-700 capitalize">{label}</p>
-                      <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${p.statut === "Present" ? "bg-emerald-100 text-emerald-700" : p.statut === "Absent" ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-600"}`}>
-                        {p.statut ?? "—"}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Pagination */}
-            {presenceTotalPages > 1 && (
-              <div className="flex items-center justify-between mt-4 pt-3 border-t border-border">
-                <Button
-                  variant="outline" size="sm"
-                  onClick={() => setPresencePage(p => Math.max(1, p - 1))}
-                  disabled={presencePage <= 1 || presenceLoading}
-                  className="flex items-center gap-1"
-                >
-                  <ChevronLeft className="w-3.5 h-3.5" /> Précédent
-                </Button>
-                <span className="text-xs text-muted-foreground">Page {presencePage} / {presenceTotalPages}</span>
-                <Button
-                  variant="outline" size="sm"
-                  onClick={() => setPresencePage(p => Math.min(presenceTotalPages, p + 1))}
-                  disabled={presencePage >= presenceTotalPages || presenceLoading}
-                  className="flex items-center gap-1"
-                >
-                  Suivant <ChevronRight className="w-3.5 h-3.5" />
-                </Button>
-              </div>
             )}
           </Card>
 

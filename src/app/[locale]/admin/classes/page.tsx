@@ -243,19 +243,14 @@ export default function ClassesPage({ params }: { params: Promise<{ locale: Loca
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium mb-1">{tc("nameLabel")}</label>
-                    <select
+                    <Input
                       name="nom"
                       value={formData.nom}
                       onChange={handleInputChange}
-                      className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      placeholder="Ex. TPS Les Petits Loups, Classe A…"
+                      className="w-full"
                       required
-                    >
-                      <option value="">{tc("chooseOption")}</option>
-                      <option value="TPS">TPS — Toute Petite Section</option>
-                      <option value="PS">PS — Petite Section</option>
-                      <option value="MS">MS — Moyenne Section</option>
-                      <option value="GS">GS — Grande Section</option>
-                    </select>
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">{tc("levelLabel")}</label>
