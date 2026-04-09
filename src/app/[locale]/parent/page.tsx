@@ -10,7 +10,18 @@ import { Locale } from "@/lib/i18n/config"
 import { apiClient } from "@/lib/api"
 import { DailyResume } from "@/types/domain"
 import { formatLocalDateKey, safeDateForLocaleDisplay } from "@/lib/date-local"
-import { Home, CheckCircle2, Baby, Utensils, CalendarDays, ChevronLeft, ChevronRight, Pencil, Check, X, RefreshCw } from "lucide-react"
+import { Home, CheckCircle2, Baby, Utensils, CalendarDays, ChevronLeft, ChevronRight, Pencil, Check, X, RefreshCw, XCircle, HelpCircle } from "lucide-react"
+
+const RESUME_DAYS_PAGE_SIZE = 7
+const MAX_RESUME_DAY_PAGE = 52
+
+function daysFromTodayLocal(d: Date): number {
+  const t = new Date()
+  t.setHours(0, 0, 0, 0)
+  const x = new Date(d)
+  x.setHours(0, 0, 0, 0)
+  return Math.round((t.getTime() - x.getTime()) / 86400000)
+}
 
 type Tab = "home" | "presence" | "child" | "menu" | "events"
 
@@ -140,7 +151,6 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
   const now = new Date()
   const [presenceFilterMonth, setPresenceFilterMonth] = useState(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`)
 
-  const [todayResumeLoading, setTodayResumeLoading] = useState(false)
   const [resumeRefreshTick, setResumeRefreshTick] = useState(0)
 
   /** Jour affiché dans l’onglet Présence (résumé + alignement filtre historique) — toujours en date locale */
@@ -203,8 +213,6 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
     const profile = profileRef.current
     if (!enfant || !profile) return
     applyEnfantFromServer(enfant, profile)
-    setDailyResumeToday(null)
-    setPresenceOnToday(null)
     setDailyResumePresenceDay(null)
     setPresenceStatForSelectedDay(null)
     setPresenceViewDate(() => {
@@ -370,38 +378,6 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
     return cur as unknown as DailyResume
   }
 
-  useEffect(() => {
-    if (!child?.id) return
-    let cancelled = false
-    async function loadTodayResume() {
-      setTodayResumeLoading(true)
-      const enfantId = String(child!.id)
-      const todayKey = formatLocalDateKey(new Date())
-      try {
-        const [resumeRes, presRes] = await Promise.all([
-          apiClient.getChildResume(enfantId, todayKey),
-          apiClient.getChildPresences(enfantId, 1, 1, todayKey, todayKey).catch(() => null),
-        ])
-        if (cancelled) return
-        const parsed = parseResumeBody(resumeRes.data)
-        setDailyResumeToday(parsed)
-        const payload = presRes?.data as { data?: unknown[] } | undefined
-        const items = Array.isArray(payload?.data) ? payload.data : []
-        const row = items[0] as { statut?: string } | undefined
-        setPresenceOnToday(row?.statut ? { statut: row.statut } : null)
-      } catch {
-        if (!cancelled) {
-          setDailyResumeToday(null)
-          setPresenceOnToday(null)
-        }
-      } finally {
-        if (!cancelled) setTodayResumeLoading(false)
-      }
-    }
-    void loadTodayResume()
-    return () => { cancelled = true }
-  }, [child?.id, resumeRefreshTick])
-
   // Résumé + présence pour le jour choisi dans l’onglet Présence (jours précédents inclus)
   useEffect(() => {
     if (!child?.id) return
@@ -555,12 +531,12 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
         <p className="text-xs text-gray-500 capitalize">
           {new Date(`${forDate}T12:00:00`).toLocaleDateString(dateLocale, { weekday: "long", day: "2-digit", month: "long" })}
         </p>
-        <p className="text-sm text-gray-800">✓ {t("ui.presenceOnlyLine", { status: stLabel })}</p>
+        <p className="text-sm text-gray-800">{t("ui.presenceOnlyLine", { status: stLabel })}</p>
       </div>
     )
   }
 
-  const ResumeCards = ({ resume }: { resume: DailyResume | null }) => {
+  const ResumeTextBlock = ({ resume }: { resume: DailyResume | null }) => {
     if (!resume) return null
     const dRaw = resume.date as unknown
     const ymdPrefer =
@@ -582,10 +558,10 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
     const part = parentResumeParticipation(resume.participation as string | undefined)
 
     const metricRows = [
-      { label: t("ui.appetite"), ...appet, color: "#FFF4ED", textColor: "#D97706" },
-      { label: t("ui.mood"), ...hum, color: "#EBF7FD", textColor: "#1A73A7" },
-      { label: t("ui.nap"), ...si, color: "#F0EEFF", textColor: "#5B4FCF" },
-      { label: t("ui.participation"), ...part, color: "#F0FDF4", textColor: "#16A34A" },
+      { label: t("ui.appetite"), value: appet.text },
+      { label: t("ui.mood"), value: hum.text },
+      { label: t("ui.nap"), value: si.text },
+      { label: t("ui.participation"), value: part.text },
     ]
 
     return (
@@ -598,18 +574,17 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
         <p className="text-xs text-gray-500 capitalize">
           {dateLine}
         </p>
-        <div className="grid grid-cols-2 gap-3">
-          {metricRows.map(item => (
-            <div key={item.label} className="rounded-xl p-3 flex flex-col gap-1" style={{ background: item.color, border: "1px solid rgba(0,0,0,0.06)" }}>
-              <span className="text-xl" aria-hidden>{item.emoji}</span>
-              <p className="text-xs text-gray-500">{item.label}</p>
-              <p className="text-sm font-bold" style={{ color: item.textColor }}>{item.text}</p>
-            </div>
+        <ul className="rounded-xl border divide-y divide-gray-100 bg-gray-50/40 text-sm">
+          {metricRows.map(row => (
+            <li key={row.label} className="flex justify-between gap-3 px-3 py-2.5">
+              <span className="text-gray-500 shrink-0">{row.label}</span>
+              <span className="font-medium text-gray-900 text-right">{row.value}</span>
+            </li>
           ))}
-        </div>
+        </ul>
         {resume.observations && resume.observations.length > 0 && (
-          <div className="rounded-xl p-3 border" style={{ background: "rgba(174,223,247,0.2)", borderColor: "#AEDFF7" }}>
-            <p className="text-xs font-medium mb-1" style={{ color: "#1A1A1A" }}>💬 {t("ui.observations")}</p>
+          <div className="rounded-xl p-3 border border-gray-200 bg-white">
+            <p className="text-xs font-medium mb-1.5 text-gray-800">{t("ui.observations")}</p>
             <ul className="text-sm text-gray-600 space-y-0.5">
               {resume.observations.map((obs, i) => <li key={i}>• {obs}</li>)}
             </ul>
@@ -620,9 +595,7 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
   }
 
   // ─── Tab: Home ────────────────────────────────────────────────────────────
-  const HomeTab = () => {
-    const calendarTodayStr = formatLocalDateKey(new Date())
-    return (
+  const HomeTab = () => (
     <div className="px-4 pt-4 pb-4 space-y-4">
       {/* Greeting + child hero */}
       <style>{`@keyframes fadeSlideIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }`}</style>
@@ -661,32 +634,21 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
         </div>
       </div>
 
-      {/* Résumé individuel (humeur, sieste…) + présence du jour */}
+      {/* Rappel : détail jour par jour dans Présence (pas de résumé sur l’accueil) */}
       <Card className="border shadow-sm rounded-2xl" style={{ borderColor: "#AEDFF7" }}>
         <CardHeader className="pb-3 border-b" style={{ borderColor: "#AEDFF7" }}>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-bold text-gray-900">📋 {t("ui.dailySummaryTitle")}</CardTitle>
-            <button
-              type="button"
-              onClick={() => setResumeRefreshTick(tk => tk + 1)}
-              disabled={todayResumeLoading}
-              className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-40"
-              title={t("ui.refreshTitle")}
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${todayResumeLoading ? "animate-spin" : ""}`} />
-            </button>
-          </div>
+          <CardTitle className="text-sm font-bold text-gray-900">{t("ui.dailySummaryTitle")}</CardTitle>
         </CardHeader>
         <CardContent className="pt-4">
-          {todayResumeLoading ? (
-            <p className="text-sm text-gray-400 text-center py-6 animate-pulse">{t("ui.loading")}</p>
-          ) : dailyResumeToday ? (
-            <ResumeCards resume={dailyResumeToday} />
-          ) : presenceOnToday ? (
-            <PresenceOnlyFallback forDate={calendarTodayStr} statut={presenceOnToday.statut} />
-          ) : (
-            <p className="text-sm text-gray-500 text-center py-4">{t("ui.dailySummaryEmpty")}</p>
-          )}
+          <p className="text-sm text-gray-600 leading-relaxed mb-3">{t("ui.homeSummaryRedirect")}</p>
+          <button
+            type="button"
+            onClick={() => setActiveTab("presence")}
+            className="text-sm font-semibold hover:underline"
+            style={{ color: "#FF6F61" }}
+          >
+            {t("ui.openPresenceTab")}
+          </button>
         </CardContent>
       </Card>
 
@@ -720,8 +682,7 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
         </Card>
       )}
     </div>
-    )
-  }
+  )
 
   // ─── Tab: Presence ────────────────────────────────────────────────────────
   const PresenceTab = () => {
@@ -772,6 +733,41 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
     const nbPresent = presences.filter(p => p.statut === "Present").length
     const nbAbsent  = presences.filter(p => p.statut === "Absent").length
 
+    const dayOffsetFromToday = daysFromTodayLocal(presenceViewDate)
+    const resumePage = Math.min(MAX_RESUME_DAY_PAGE, Math.max(0, Math.floor(dayOffsetFromToday / RESUME_DAYS_PAGE_SIZE)))
+    const pageBaseOffset = resumePage * RESUME_DAYS_PAGE_SIZE
+    const todayMid = new Date()
+    todayMid.setHours(0, 0, 0, 0)
+    const weekDayChips = Array.from({ length: RESUME_DAYS_PAGE_SIZE }, (_, i) => {
+      const d = new Date(todayMid)
+      d.setDate(todayMid.getDate() - (pageBaseOffset + i))
+      return d
+    })
+    const weekRangeFirst = weekDayChips[0]
+    const weekRangeLast = weekDayChips[RESUME_DAYS_PAGE_SIZE - 1]
+    const weekRangeLabel =
+      weekRangeFirst && weekRangeLast
+        ? t("ui.resumeWeekRange", {
+            from: weekRangeLast.toLocaleDateString(dateLocale, { day: "2-digit", month: "short" }),
+            to: weekRangeFirst.toLocaleDateString(dateLocale, { day: "2-digit", month: "short" }),
+          })
+        : ""
+
+    const goOlderResumeWeek = () => {
+      const nextP = Math.min(MAX_RESUME_DAY_PAGE, resumePage + 1)
+      const d = new Date()
+      d.setHours(0, 0, 0, 0)
+      d.setDate(d.getDate() - nextP * RESUME_DAYS_PAGE_SIZE)
+      setPresenceViewDate(d)
+    }
+    const goNewerResumeWeek = () => {
+      const prevP = Math.max(0, resumePage - 1)
+      const d = new Date()
+      d.setHours(0, 0, 0, 0)
+      d.setDate(d.getDate() - prevP * RESUME_DAYS_PAGE_SIZE)
+      setPresenceViewDate(d)
+    }
+
     return (
       <div className="px-4 pt-4 pb-4 space-y-4">
         <h2 className="text-xl font-bold text-gray-900">{t("ui.presencesTitle")}</h2>
@@ -779,7 +775,13 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
         {/* Today status */}
         <div className={`rounded-2xl p-4 border-2 ${statut === "Present" ? "bg-emerald-50 border-emerald-300" : statut === "Absent" ? "bg-red-50 border-red-300" : "bg-gray-50 border-gray-200"}`}>
           <div className="flex items-center gap-3">
-            <span className="text-3xl">{statut === "Present" ? "✅" : statut === "Absent" ? "❌" : "❓"}</span>
+            {statut === "Present" ? (
+              <CheckCircle2 className="w-9 h-9 shrink-0 text-emerald-600" aria-hidden />
+            ) : statut === "Absent" ? (
+              <XCircle className="w-9 h-9 shrink-0 text-red-600" aria-hidden />
+            ) : (
+              <HelpCircle className="w-9 h-9 shrink-0 text-gray-400" aria-hidden />
+            )}
             <div>
               <p className="font-bold text-gray-900">{statut === "Present" ? t("ui.presentToday") : statut === "Absent" ? t("ui.absentToday") : t("ui.unknownStatus")}</p>
               <p className="text-xs text-gray-500">{new Date().toLocaleDateString(dateLocale, { weekday: "long", day: "2-digit", month: "long" })}</p>
@@ -791,7 +793,18 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
         <Card className="border shadow-sm rounded-2xl" style={{ borderColor: "#AEDFF7" }}>
           <CardHeader className="pb-3 border-b" style={{ borderColor: "#AEDFF7" }}>
             <div className="flex items-center justify-between gap-2 flex-wrap">
-              <CardTitle className="text-sm font-bold text-gray-900 flex-shrink-0">{t("ui.dailySummaryTitle")}</CardTitle>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <CardTitle className="text-sm font-bold text-gray-900">{t("ui.dailySummaryTitle")}</CardTitle>
+                <button
+                  type="button"
+                  onClick={() => setResumeRefreshTick(tk => tk + 1)}
+                  disabled={presenceDayResumeLoading}
+                  className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-40"
+                  title={t("ui.refreshTitle")}
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${presenceDayResumeLoading ? "animate-spin" : ""}`} />
+                </button>
+              </div>
               <div className="flex items-center gap-1 flex-shrink-0">
                 <button type="button" onClick={goPresencePrevDay} className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-200 hover:bg-gray-100 text-gray-600" aria-label={t("ui.prev")}>
                   <ChevronLeft className="w-4 h-4" />
@@ -813,10 +826,56 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
             </div>
           </CardHeader>
           <CardContent className="pt-4">
+            <div className="mb-4 space-y-2">
+              <p className="text-xs text-center text-gray-500">{weekRangeLabel}</p>
+              <div className="flex flex-wrap gap-1.5 justify-center">
+                {weekDayChips.map(d => {
+                  const key = formatLocalDateKey(d)
+                  const sel = key === presenceViewDateKey
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => {
+                        const next = new Date(d)
+                        next.setHours(0, 0, 0, 0)
+                        setPresenceViewDate(next)
+                      }}
+                      className={`min-w-[2.75rem] rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${
+                        sel ? "text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                      style={sel ? { background: "#1A73A7" } : undefined}
+                    >
+                      {d.toLocaleDateString(dateLocale, { weekday: "short", day: "numeric" })}
+                    </button>
+                  )
+                })}
+              </div>
+              <div className="flex items-center justify-between gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={goOlderResumeWeek}
+                  disabled={resumePage >= MAX_RESUME_DAY_PAGE}
+                  className="text-xs font-medium px-2 py-1 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{ color: "#1A73A7" }}
+                >
+                  {t("ui.resumeDaysOlder")}
+                </button>
+                <button
+                  type="button"
+                  onClick={goNewerResumeWeek}
+                  disabled={resumePage <= 0}
+                  className="text-xs font-medium px-2 py-1 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{ color: "#1A73A7" }}
+                >
+                  {t("ui.resumeDaysNewer")}
+                </button>
+              </div>
+            </div>
             {presenceDayResumeLoading ? (
               <p className="text-sm text-gray-400 text-center py-6 animate-pulse">{t("ui.loading")}</p>
             ) : dailyResumePresenceDay ? (
-              <ResumeCards resume={dailyResumePresenceDay} />
+              <ResumeTextBlock resume={dailyResumePresenceDay} />
             ) : presenceStatForSelectedDay ? (
               <PresenceOnlyFallback forDate={presenceViewDateKey} statut={presenceStatForSelectedDay.statut} />
             ) : (
