@@ -151,6 +151,7 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
   const now = new Date()
   const [presenceFilterMonth, setPresenceFilterMonth] = useState(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`)
 
+  const [todayResumeLoading, setTodayResumeLoading] = useState(false)
   const [resumeRefreshTick, setResumeRefreshTick] = useState(0)
 
   /** Jour affiché dans l’onglet Présence (résumé + alignement filtre historique) — toujours en date locale */
@@ -213,6 +214,8 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
     const profile = profileRef.current
     if (!enfant || !profile) return
     applyEnfantFromServer(enfant, profile)
+    setDailyResumeToday(null)
+    setPresenceOnToday(null)
     setDailyResumePresenceDay(null)
     setPresenceStatForSelectedDay(null)
     setPresenceViewDate(() => {
@@ -337,12 +340,28 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
   function parseResumeBody(data: unknown): DailyResume | null {
     if (data == null || typeof data !== "object") return null
     let cur: unknown = data
-    for (let depth = 0; depth < 6; depth++) {
+    for (let depth = 0; depth < 8; depth++) {
       if (!cur || typeof cur !== "object") return null
       const layer = cur as Record<string, unknown>
       if (layer.empty === true) return null
-      const inner = layer.data
-      if (inner !== null && typeof inner === "object" && !Array.isArray(inner)) {
+
+      const hasMetric =
+        layer.humeur != null ||
+        layer.appetit != null ||
+        layer.sieste != null ||
+        layer.participation != null
+      const hasObs = Array.isArray(layer.observations) || typeof layer.observations === "string"
+      if (hasMetric || hasObs) break
+
+      let inner: unknown
+      for (const key of ["data", "resume", "payload", "result"] as const) {
+        const v = layer[key]
+        if (v != null && typeof v === "object" && !Array.isArray(v)) {
+          inner = v
+          break
+        }
+      }
+      if (inner !== undefined) {
         cur = inner
         continue
       }
@@ -377,6 +396,38 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
     if (!hasContent) return null
     return cur as unknown as DailyResume
   }
+
+  // Résumé du jour (Accueil) — même source que Présence pour « aujourd’hui »
+  useEffect(() => {
+    if (!child?.id) return
+    let cancelled = false
+    async function loadTodayResume() {
+      setTodayResumeLoading(true)
+      const enfantId = String(child!.id)
+      const todayKey = formatLocalDateKey(new Date())
+      try {
+        const [resumeRes, presRes] = await Promise.all([
+          apiClient.getChildResume(enfantId, todayKey),
+          apiClient.getChildPresences(enfantId, 1, 1, todayKey, todayKey).catch(() => null),
+        ])
+        if (cancelled) return
+        setDailyResumeToday(parseResumeBody(resumeRes.data))
+        const payload = presRes?.data as { data?: unknown[] } | undefined
+        const items = Array.isArray(payload?.data) ? payload.data : []
+        const row = items[0] as { statut?: string } | undefined
+        setPresenceOnToday(row?.statut ? { statut: row.statut } : null)
+      } catch {
+        if (!cancelled) {
+          setDailyResumeToday(null)
+          setPresenceOnToday(null)
+        }
+      } finally {
+        if (!cancelled) setTodayResumeLoading(false)
+      }
+    }
+    void loadTodayResume()
+    return () => { cancelled = true }
+  }, [child?.id, resumeRefreshTick])
 
   // Résumé + présence pour le jour choisi dans l’onglet Présence (jours précédents inclus)
   useEffect(() => {
@@ -536,7 +587,8 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
     )
   }
 
-  const ResumeTextBlock = ({ resume }: { resume: DailyResume | null }) => {
+  /** Grille 4 cartes (appétit, humeur, sieste, participation) — alignée sur la saisie enseignant */
+  const ResumeCards = ({ resume }: { resume: DailyResume | null }) => {
     if (!resume) return null
     const dRaw = resume.date as unknown
     const ymdPrefer =
@@ -558,10 +610,10 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
     const part = parentResumeParticipation(resume.participation as string | undefined)
 
     const metricRows = [
-      { label: t("ui.appetite"), value: appet.text },
-      { label: t("ui.mood"), value: hum.text },
-      { label: t("ui.nap"), value: si.text },
-      { label: t("ui.participation"), value: part.text },
+      { label: t("ui.appetite"), ...appet, color: "#FFF4ED", textColor: "#D97706" },
+      { label: t("ui.mood"), ...hum, color: "#EBF7FD", textColor: "#1A73A7" },
+      { label: t("ui.nap"), ...si, color: "#F0EEFF", textColor: "#5B4FCF" },
+      { label: t("ui.participation"), ...part, color: "#F0FDF4", textColor: "#16A34A" },
     ]
 
     return (
@@ -574,17 +626,18 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
         <p className="text-xs text-gray-500 capitalize">
           {dateLine}
         </p>
-        <ul className="rounded-xl border divide-y divide-gray-100 bg-gray-50/40 text-sm">
-          {metricRows.map(row => (
-            <li key={row.label} className="flex justify-between gap-3 px-3 py-2.5">
-              <span className="text-gray-500 shrink-0">{row.label}</span>
-              <span className="font-medium text-gray-900 text-right">{row.value}</span>
-            </li>
+        <div className="grid grid-cols-2 gap-3">
+          {metricRows.map(item => (
+            <div key={item.label} className="rounded-xl p-3 flex flex-col gap-1" style={{ background: item.color, border: "1px solid rgba(0,0,0,0.06)" }}>
+              <span className="text-xl" aria-hidden>{item.emoji}</span>
+              <p className="text-xs text-gray-500">{item.label}</p>
+              <p className="text-sm font-bold" style={{ color: item.textColor }}>{item.text}</p>
+            </div>
           ))}
-        </ul>
+        </div>
         {resume.observations && resume.observations.length > 0 && (
-          <div className="rounded-xl p-3 border border-gray-200 bg-white">
-            <p className="text-xs font-medium mb-1.5 text-gray-800">{t("ui.observations")}</p>
+          <div className="rounded-xl p-3 border" style={{ background: "rgba(174,223,247,0.2)", borderColor: "#AEDFF7" }}>
+            <p className="text-xs font-medium mb-1" style={{ color: "#1A1A1A" }}>{t("ui.observations")}</p>
             <ul className="text-sm text-gray-600 space-y-0.5">
               {resume.observations.map((obs, i) => <li key={i}>• {obs}</li>)}
             </ul>
@@ -595,7 +648,9 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
   }
 
   // ─── Tab: Home ────────────────────────────────────────────────────────────
-  const HomeTab = () => (
+  const HomeTab = () => {
+    const calendarTodayStr = formatLocalDateKey(new Date())
+    return (
     <div className="px-4 pt-4 pb-4 space-y-4">
       {/* Greeting + child hero */}
       <style>{`@keyframes fadeSlideIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }`}</style>
@@ -634,21 +689,33 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
         </div>
       </div>
 
-      {/* Rappel : détail jour par jour dans Présence (pas de résumé sur l’accueil) */}
+      {/* Résumé du jour (même présentation que la saisie enseignant : 4 cartes) */}
       <Card className="border shadow-sm rounded-2xl" style={{ borderColor: "#AEDFF7" }}>
         <CardHeader className="pb-3 border-b" style={{ borderColor: "#AEDFF7" }}>
-          <CardTitle className="text-sm font-bold text-gray-900">{t("ui.dailySummaryTitle")}</CardTitle>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="text-sm font-bold text-gray-900">{t("ui.dailySummaryTitle")}</CardTitle>
+            <button
+              type="button"
+              onClick={() => setResumeRefreshTick(tk => tk + 1)}
+              disabled={todayResumeLoading}
+              className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-40"
+              title={t("ui.refreshTitle")}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${todayResumeLoading ? "animate-spin" : ""}`} />
+            </button>
+          </div>
         </CardHeader>
         <CardContent className="pt-4">
-          <p className="text-sm text-gray-600 leading-relaxed mb-3">{t("ui.homeSummaryRedirect")}</p>
-          <button
-            type="button"
-            onClick={() => setActiveTab("presence")}
-            className="text-sm font-semibold hover:underline"
-            style={{ color: "#FF6F61" }}
-          >
-            {t("ui.openPresenceTab")}
-          </button>
+          <p className="text-xs text-gray-500 mb-3">{t("ui.homeSummaryPresenceHint")}</p>
+          {todayResumeLoading ? (
+            <p className="text-sm text-gray-400 text-center py-6 animate-pulse">{t("ui.loading")}</p>
+          ) : dailyResumeToday ? (
+            <ResumeCards resume={dailyResumeToday} />
+          ) : presenceOnToday ? (
+            <PresenceOnlyFallback forDate={calendarTodayStr} statut={presenceOnToday.statut} />
+          ) : (
+            <p className="text-sm text-gray-500 text-center py-4">{t("ui.dailySummaryEmpty")}</p>
+          )}
         </CardContent>
       </Card>
 
@@ -682,7 +749,8 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
         </Card>
       )}
     </div>
-  )
+    )
+  }
 
   // ─── Tab: Presence ────────────────────────────────────────────────────────
   const PresenceTab = () => {
@@ -875,7 +943,7 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
             {presenceDayResumeLoading ? (
               <p className="text-sm text-gray-400 text-center py-6 animate-pulse">{t("ui.loading")}</p>
             ) : dailyResumePresenceDay ? (
-              <ResumeTextBlock resume={dailyResumePresenceDay} />
+              <ResumeCards resume={dailyResumePresenceDay} />
             ) : presenceStatForSelectedDay ? (
               <PresenceOnlyFallback forDate={presenceViewDateKey} statut={presenceStatForSelectedDay.statut} />
             ) : (

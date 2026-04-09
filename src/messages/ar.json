@@ -84,6 +84,7 @@
       "refreshTitle": "تحديث",
       "homeSummaryRedirect": "التفاصيل يوماً بيوم (الملخص والحضور) تُعرَض في تبويب الحضور.",
       "openPresenceTab": "فتح تبويب الحضور",
+      "homeSummaryPresenceHint": "للتفاصيل يوماً بيوم (تواريخ أخرى، السجل) استخدم تبويب الحضور.",
       "resumeWeekRange": "من {from} إلى {to}",
       "resumeDaysOlder": "← أيام أقدم",
       "resumeDaysNewer": "أيام أحدث →",
