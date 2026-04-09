@@ -94,7 +94,6 @@
       "selectChild": "الطفل المعروض",
       "presenceOnlyLine": "تم تسجيل الحضور: {status}.",
       "dailySummaryEmpty": "لا يوجد ملخص ولا حضور لهذا اليوم حالياً.",
-      "resumePendingFromTeacher": "تظهر التفاصيل (المزاج، الأكل، القيلولة، المشاركة) هنا بمجرد أن يُدخلها المربي.",
       "resumeFallbackNotice": "لا يوجد إدخال في التاريخ المختار — عرض ملخص {shown}.",
       "classJournalFallbackNotice": "آخر رسالة متاحة لهذا التاريخ (لا رسالة جديدة في ذلك اليوم).",
       "backToToday": "← العودة إلى اليوم",

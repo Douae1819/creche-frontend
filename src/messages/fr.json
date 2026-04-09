@@ -94,7 +94,6 @@
       "selectChild": "Enfant affiché",
       "presenceOnlyLine": "Présence enregistrée : {status}.",
       "dailySummaryEmpty": "Aucun résumé ni présence pour aujourd’hui pour le moment.",
-      "resumePendingFromTeacher": "Le détail (humeur, repas, sieste, participation) apparaît ici dès que l’enseignant l’a saisi.",
       "resumeFallbackNotice": "Pas de saisie à la date choisie — affichage du résumé du {shown}.",
       "classJournalFallbackNotice": "Message de classe : dernier disponible à cette date (pas de nouveau message ce jour-là).",
       "backToToday": "← Revenir à aujourd'hui",

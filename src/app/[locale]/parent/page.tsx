@@ -626,10 +626,7 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
           ) : dailyResumeToday ? (
             <ResumeCards resume={dailyResumeToday} />
           ) : presenceOnToday ? (
-            <div className="space-y-2">
-              <PresenceOnlyFallback forDate={todayISO} statut={presenceOnToday.statut} />
-              <p className="text-xs text-gray-500">{t("ui.resumePendingFromTeacher")}</p>
-            </div>
+            <PresenceOnlyFallback forDate={todayISO} statut={presenceOnToday.statut} />
           ) : (
             <p className="text-sm text-gray-500 text-center py-4">{t("ui.dailySummaryEmpty")}</p>
           )}
