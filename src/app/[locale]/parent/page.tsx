@@ -140,10 +140,19 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
   const now = new Date()
   const [presenceFilterMonth, setPresenceFilterMonth] = useState(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`)
 
-  const todayDate = new Date()
-  todayDate.setHours(0, 0, 0, 0)
   const [todayResumeLoading, setTodayResumeLoading] = useState(false)
   const [resumeRefreshTick, setResumeRefreshTick] = useState(0)
+
+  /** Jour affiché dans l’onglet Présence (résumé + alignement filtre historique) — toujours en date locale */
+  const [presenceViewDate, setPresenceViewDate] = useState(() => {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    return d
+  })
+  const presenceViewDateKey = formatLocalDateKey(presenceViewDate)
+  const [dailyResumePresenceDay, setDailyResumePresenceDay] = useState<DailyResume | null>(null)
+  const [presenceStatForSelectedDay, setPresenceStatForSelectedDay] = useState<{ statut: string } | null>(null)
+  const [presenceDayResumeLoading, setPresenceDayResumeLoading] = useState(false)
 
   const profileRef = useRef<{ tuteurs?: any[]; telephone?: string; adresse?: string; prenom?: string | null } | null>(null)
   const [enfantsInFamily, setEnfantsInFamily] = useState<any[]>([])
@@ -196,6 +205,13 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
     applyEnfantFromServer(enfant, profile)
     setDailyResumeToday(null)
     setPresenceOnToday(null)
+    setDailyResumePresenceDay(null)
+    setPresenceStatForSelectedDay(null)
+    setPresenceViewDate(() => {
+      const d = new Date()
+      d.setHours(0, 0, 0, 0)
+      return d
+    })
     setResumeRefreshTick(tk => tk + 1)
   }
 
@@ -386,6 +402,47 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
     return () => { cancelled = true }
   }, [child?.id, resumeRefreshTick])
 
+  // Résumé + présence pour le jour choisi dans l’onglet Présence (jours précédents inclus)
+  useEffect(() => {
+    if (!child?.id) return
+    let cancelled = false
+    async function loadPresenceDay() {
+      setPresenceDayResumeLoading(true)
+      const enfantId = String(child!.id)
+      const ymd = presenceViewDateKey
+      try {
+        const [resumeRes, presRes] = await Promise.all([
+          apiClient.getChildResume(enfantId, ymd),
+          apiClient.getChildPresences(enfantId, 1, 1, ymd, ymd).catch(() => null),
+        ])
+        if (cancelled) return
+        setDailyResumePresenceDay(parseResumeBody(resumeRes.data))
+        const payload = presRes?.data as { data?: unknown[] } | undefined
+        const items = Array.isArray(payload?.data) ? payload.data : []
+        const row = items[0] as { statut?: string } | undefined
+        setPresenceStatForSelectedDay(row?.statut ? { statut: row.statut } : null)
+      } catch {
+        if (!cancelled) {
+          setDailyResumePresenceDay(null)
+          setPresenceStatForSelectedDay(null)
+        }
+      } finally {
+        if (!cancelled) setPresenceDayResumeLoading(false)
+      }
+    }
+    void loadPresenceDay()
+    return () => { cancelled = true }
+  }, [child?.id, presenceViewDateKey, resumeRefreshTick])
+
+  // Liste d’historique : même mois que le jour consulté (navigation par flèches)
+  useEffect(() => {
+    const [y, m] = presenceViewDateKey.split("-")
+    if (y && m) {
+      setPresenceFilterMonth(`${y}-${m}`)
+      setPresencePage(1)
+    }
+  }, [presenceViewDateKey])
+
   // Poll every 60 s — l’enseignant peut publier le résumé / message en cours de journée
   useEffect(() => {
     if (!child?.id) return
@@ -491,8 +548,6 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
   ]
 
   // ─── Daily Resume Cards ───────────────────────────────────────────────────
-  const todayISO = formatLocalDateKey(todayDate)
-
   const PresenceOnlyFallback = ({ forDate, statut }: { forDate: string; statut: string }) => {
     const stLabel = statut === "Present" ? t("ui.statusPresent") : statut === "Absent" ? t("ui.statusAbsent") : statut
     return (
@@ -565,7 +620,9 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
   }
 
   // ─── Tab: Home ────────────────────────────────────────────────────────────
-  const HomeTab = () => (
+  const HomeTab = () => {
+    const calendarTodayStr = formatLocalDateKey(new Date())
+    return (
     <div className="px-4 pt-4 pb-4 space-y-4">
       {/* Greeting + child hero */}
       <style>{`@keyframes fadeSlideIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }`}</style>
@@ -626,7 +683,7 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
           ) : dailyResumeToday ? (
             <ResumeCards resume={dailyResumeToday} />
           ) : presenceOnToday ? (
-            <PresenceOnlyFallback forDate={todayISO} statut={presenceOnToday.statut} />
+            <PresenceOnlyFallback forDate={calendarTodayStr} statut={presenceOnToday.statut} />
           ) : (
             <p className="text-sm text-gray-500 text-center py-4">{t("ui.dailySummaryEmpty")}</p>
           )}
@@ -663,11 +720,39 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
         </Card>
       )}
     </div>
-  )
+    )
+  }
 
   // ─── Tab: Presence ────────────────────────────────────────────────────────
   const PresenceTab = () => {
-    const todayStr = formatLocalDateKey(new Date())
+    const calendarTodayStr = formatLocalDateKey(new Date())
+    const todayStr = calendarTodayStr
+    const isPresenceDayToday = presenceViewDateKey === calendarTodayStr
+
+    const goPresencePrevDay = () => {
+      setPresenceViewDate(d => {
+        const p = new Date(d)
+        p.setDate(p.getDate() - 1)
+        p.setHours(0, 0, 0, 0)
+        return p
+      })
+    }
+    const goPresenceNextDay = () => {
+      if (isPresenceDayToday) return
+      setPresenceViewDate(d => {
+        const cap = new Date()
+        cap.setHours(0, 0, 0, 0)
+        const n = new Date(d)
+        n.setDate(n.getDate() + 1)
+        n.setHours(0, 0, 0, 0)
+        return n.getTime() > cap.getTime() ? cap : n
+      })
+    }
+    const goPresenceToday = () => {
+      const t = new Date()
+      t.setHours(0, 0, 0, 0)
+      setPresenceViewDate(t)
+    }
     // For today's status: check if current filter month matches today, then look in loaded data
     const todayPresence = presences.find((p: any) => (p.date ?? "").slice(0, 10) === todayStr)
     const statut = todayPresence?.statut
@@ -701,6 +786,44 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
             </div>
           </div>
         </div>
+
+        {/* Résumé + présence pour le jour choisi (date locale, pas UTC) */}
+        <Card className="border shadow-sm rounded-2xl" style={{ borderColor: "#AEDFF7" }}>
+          <CardHeader className="pb-3 border-b" style={{ borderColor: "#AEDFF7" }}>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <CardTitle className="text-sm font-bold text-gray-900 flex-shrink-0">{t("ui.dailySummaryTitle")}</CardTitle>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <button type="button" onClick={goPresencePrevDay} className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-200 hover:bg-gray-100 text-gray-600" aria-label={t("ui.prev")}>
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <div className="text-center min-w-[100px]">
+                  <p className="text-xs font-semibold" style={{ color: "#1A1A1A" }}>
+                    {isPresenceDayToday ? t("ui.today") : presenceViewDate.toLocaleDateString(dateLocale, { weekday: "short", day: "2-digit", month: "short" })}
+                  </p>
+                </div>
+                <button type="button" onClick={goPresenceNextDay} disabled={isPresenceDayToday} className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-200 hover:bg-gray-100 text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed" aria-label={t("ui.next")}>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+                {!isPresenceDayToday && (
+                  <button type="button" onClick={goPresenceToday} className="ml-1 text-xs hover:underline whitespace-nowrap" style={{ color: "#FF6F61" }}>
+                    {t("ui.backToToday")}
+                  </button>
+                )}
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-4">
+            {presenceDayResumeLoading ? (
+              <p className="text-sm text-gray-400 text-center py-6 animate-pulse">{t("ui.loading")}</p>
+            ) : dailyResumePresenceDay ? (
+              <ResumeCards resume={dailyResumePresenceDay} />
+            ) : presenceStatForSelectedDay ? (
+              <PresenceOnlyFallback forDate={presenceViewDateKey} statut={presenceStatForSelectedDay.statut} />
+            ) : (
+              <p className="text-sm text-gray-500 text-center py-4">{t("ui.dailySummaryEmpty")}</p>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Attendance history with filter + pagination */}
         <Card className="border border-gray-100 shadow-sm rounded-2xl">
