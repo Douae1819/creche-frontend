@@ -721,8 +721,11 @@
     "summary": {
       "title": "Résumé de la journée",
       "back": "Retour",
+      "summaryDateLabel": "Date du résumé",
       "kpis": {
         "presentLabel": "Présents",
+        "absentLabel": "Absents",
+        "resumesLabel": "Résumés",
         "attendanceRateLabel": "Taux présence"
       },
       "sections": {
@@ -744,6 +747,9 @@
           "good": "Bonne",
           "excellent": "Excellente"
         },
+        "collectiveActivitiesLabel": "Activités du jour",
+        "collectiveLearningLabel": "Apprentissages",
+        "collectiveGroupMoodLabel": "Humeur du groupe",
         "dailyMessageTitle": "Message de la journée",
         "dailyMessagePlaceholder": "Résumez la journée pour les parents...",
         "dailyMessageDefault": "Aujourd'hui, les enfants ont travaillé la motricité fine et les mathématiques. Excellente participation et bonne ambiance!",
@@ -757,7 +763,8 @@
         "loadSummaryError": "Impossible de charger le résumé de classe",
         "summaryUnavailable": "Résumé indisponible",
         "saveMessageError": "Erreur lors de l enregistrement du message",
-        "sendMessageError": "Erreur lors de l envoi du message"
+        "sendMessageError": "Erreur lors de l envoi du message",
+        "collectivePublishedReadonly": "Ce résumé collectif est déjà publié — modification désactivée."
       },
       "success": {
         "dailyMessageSaved": "Message enregistré",
@@ -786,10 +793,7 @@
       "next": "Suivant",
       "summaryCta": "Résumé jour",
       "activityPhotosTitle": "Photos des activités du jour",
-      "activityPhotosShortNav": "Photos activités",
       "activityPhotosSubtitle": "Album visible par tous les parents de la classe (plusieurs photos par jour).",
-      "activityPhotosDaySummaryTitle": "Résumé de la journée — photos de la classe",
-      "activityPhotosEndHint": "À faire une seule fois pour toute la classe (comme le bilan du jour), pas pour chaque enfant.",
       "activityPhotosDate": "Jour",
       "activityPhotosAdd": "Ajouter une photo",
       "activityPhotosManage": "Gérer / envoyer des photos",

@@ -721,8 +721,11 @@
     "summary": {
       "title": "ملخص اليوم",
       "back": "رجوع",
+      "summaryDateLabel": "تاريخ الملخص",
       "kpis": {
         "presentLabel": "الحاضرون",
+        "absentLabel": "الغائبون",
+        "resumesLabel": "الملخصات",
         "attendanceRateLabel": "نسبة الحضور"
       },
       "sections": {
@@ -744,6 +747,9 @@
           "good": "جيدة",
           "excellent": "ممتازة"
         },
+        "collectiveActivitiesLabel": "أنشطة اليوم",
+        "collectiveLearningLabel": "ما تعلمه الأطفال",
+        "collectiveGroupMoodLabel": "مزاج المجموعة",
         "dailyMessageTitle": "رسالة اليوم",
         "dailyMessagePlaceholder": "لخص اليوم لأولياء الأمور...",
         "dailyMessageDefault": "اليوم عمل الأطفال على المهارات الحركية والرياضيات. مشاركة ممتازة وجو جميل!",
@@ -757,7 +763,8 @@
         "loadSummaryError": "تعذر تحميل ملخص الفصل",
         "summaryUnavailable": "الملخص غير متاح",
         "saveMessageError": "خطأ عند حفظ الرسالة",
-        "sendMessageError": "خطأ عند إرسال الرسالة"
+        "sendMessageError": "خطأ عند إرسال الرسالة",
+        "collectivePublishedReadonly": "هذا الملخص الجماعي منشور بالفعل — التعديل معطّل."
       },
       "success": {
         "dailyMessageSaved": "تم حفظ الرسالة",
@@ -786,10 +793,7 @@
       "next": "التالي",
       "summaryCta": "ملخص اليوم",
       "activityPhotosTitle": "صور أنشطة اليوم",
-      "activityPhotosShortNav": "صور الأنشطة",
       "activityPhotosSubtitle": "ألبوم يظهر لجميع أولياء أمور الفصل (عدة صور في اليوم).",
-      "activityPhotosDaySummaryTitle": "ملخص اليوم — صور الفصل",
-      "activityPhotosEndHint": "مرة واحدة لجميع الفصل (مثل ختام اليوم)، وليس لكل طفل على حدة.",
       "activityPhotosDate": "اليوم",
       "activityPhotosAdd": "إضافة صورة",
       "activityPhotosManage": "إدارة / إرسال صور",
