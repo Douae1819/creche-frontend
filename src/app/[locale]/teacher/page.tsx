@@ -66,7 +66,22 @@ type ClassActivityPhotoRow = { id: string; mimeType?: string; legende?: string |
 
 type StagedPhoto = { file: File; preview: string }
 
-/** Album classe : carte compacte en bas + modale (aperçu, envoi explicite, Terminer) — une fois / jour, pas par enfant */
+type TeacherActivityPhotosSectionProps = {
+  t: (k: string, values?: Record<string, number | string>) => string
+  dateYmd: string
+  onDateChange: (v: string) => void
+  photos: ClassActivityPhotoRow[]
+  loading: boolean
+  legende: string
+  onLegendeChange: (v: string) => void
+  uploading: boolean
+  onUploadFiles: (files: File[]) => Promise<void>
+  onDelete: (id: string) => void
+  /** Si true, le sous-titre « une fois pour toute la classe » est affiché par le bloc parent */
+  omitEndHint?: boolean
+}
+
+/** Album classe : carte + modale (aperçu puis envoi) */
 function TeacherActivityPhotosSection({
   t,
   dateYmd,
@@ -78,18 +93,8 @@ function TeacherActivityPhotosSection({
   uploading,
   onUploadFiles,
   onDelete,
-}: {
-  t: (k: string, values?: Record<string, number | string>) => string
-  dateYmd: string
-  onDateChange: (v: string) => void
-  photos: ClassActivityPhotoRow[]
-  loading: boolean
-  legende: string
-  onLegendeChange: (v: string) => void
-  uploading: boolean
-  onUploadFiles: (files: File[]) => Promise<void>
-  onDelete: (id: string) => void
-}) {
+  omitEndHint = false,
+}: TeacherActivityPhotosSectionProps) {
   const [modalOpen, setModalOpen] = useState(false)
   const [staged, setStaged] = useState<StagedPhoto[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -138,15 +143,12 @@ function TeacherActivityPhotosSection({
 
   return (
     <>
-      <Card
-        id="teacher-class-activity-photos"
-        className="border border-sky-100 shadow-sm rounded-2xl lg:col-span-3 bg-gradient-to-br from-sky-50/80 to-white scroll-mt-24"
-      >
+      <Card className="border border-sky-100 shadow-sm rounded-2xl lg:col-span-3 bg-gradient-to-br from-sky-50/80 to-white">
         <CardContent className="pt-4 space-y-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <h2 className="text-base font-bold text-gray-900">{t("activityPhotosTitle")}</h2>
-              <p className="text-xs text-gray-500">{t("activityPhotosEndHint")}</p>
+              {!omitEndHint ? <p className="text-xs text-gray-500">{t("activityPhotosEndHint")}</p> : null}
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-gray-600 whitespace-nowrap">{t("activityPhotosDate")}</span>
@@ -259,20 +261,15 @@ function TeacherActivityPhotosSection({
                   ))}
                 </div>
               ) : null}
-              <div className="flex flex-col sm:flex-row gap-2">
-                <Button
-                  type="button"
-                  className="flex-1 gap-2 bg-sky-500 hover:bg-sky-600 text-white"
-                  disabled={uploading || staged.length === 0}
-                  onClick={() => void handleSendStaged()}
-                >
-                  {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                  {uploading ? t("activityPhotosUploading") : t("activityPhotosSend")}
-                </Button>
-                <Button type="button" variant="secondary" className="flex-1" onClick={() => setModalOpen(false)}>
-                  {t("activityPhotosDone")}
-                </Button>
-              </div>
+              <Button
+                type="button"
+                className="w-full gap-2 bg-sky-500 hover:bg-sky-600 text-white"
+                disabled={uploading || staged.length === 0}
+                onClick={() => void handleSendStaged()}
+              >
+                {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                {uploading ? t("activityPhotosUploading") : t("activityPhotosSend")}
+              </Button>
               <p className="text-xs text-gray-400">{t("activityPhotosMultipleHint")}</p>
               {loading ? (
                 <p className="text-sm text-gray-400 py-2">{t("activityPhotosLoading")}</p>
@@ -307,6 +304,48 @@ function TeacherActivityPhotosSection({
         </div>
       ) : null}
     </>
+  )
+}
+
+/** Bloc final « résumé de la journée » : titre + consigne + photos de classe (une fois / jour) */
+function TeacherDaySummaryPhotosBlock({
+  t,
+  dateYmd,
+  onDateChange,
+  photos,
+  loading,
+  legende,
+  onLegendeChange,
+  uploading,
+  onUploadFiles,
+  onDelete,
+}: TeacherActivityPhotosSectionProps) {
+  return (
+    <section
+      id="teacher-class-activity-photos"
+      className="scroll-mt-28 mt-10 pt-8 border-t-2 border-sky-200/80 space-y-4"
+      aria-labelledby="teacher-day-summary-photos-heading"
+    >
+      <div>
+        <h2 id="teacher-day-summary-photos-heading" className="text-lg font-bold text-gray-900">
+          {t("activityPhotosDaySummaryTitle")}
+        </h2>
+        <p className="text-xs text-gray-600 mt-1.5 max-w-2xl leading-relaxed">{t("activityPhotosEndHint")}</p>
+      </div>
+      <TeacherActivityPhotosSection
+        t={t}
+        dateYmd={dateYmd}
+        onDateChange={onDateChange}
+        photos={photos}
+        loading={loading}
+        legende={legende}
+        onLegendeChange={onLegendeChange}
+        uploading={uploading}
+        onUploadFiles={onUploadFiles}
+        onDelete={onDelete}
+        omitEndHint
+      />
+    </section>
   )
 }
 
@@ -724,7 +763,15 @@ export default function TeacherDashboard() {
           })}
         </div>
 
-        <TeacherActivityPhotosSection
+        {canNavigateToSummary && (
+          <div className="flex justify-end">
+            <Link href={`/${locale}/teacher/summary`}>
+              <Button className="bg-sky-500 hover:bg-sky-600 text-white">{t("summaryCta")} →</Button>
+            </Link>
+          </div>
+        )}
+
+        <TeacherDaySummaryPhotosBlock
           t={t}
           dateYmd={activityPhotoDate}
           onDateChange={setActivityPhotoDate}
@@ -736,14 +783,6 @@ export default function TeacherDashboard() {
           onUploadFiles={handleActivityPhotosUpload}
           onDelete={handleDeleteActivityPhoto}
         />
-
-        {canNavigateToSummary && (
-          <div className="flex justify-end">
-            <Link href={`/${locale}/teacher/summary`}>
-              <Button className="bg-sky-500 hover:bg-sky-600 text-white">{t("summaryCta")} →</Button>
-            </Link>
-          </div>
-        )}
       </div>
     )
   }
@@ -1035,7 +1074,7 @@ export default function TeacherDashboard() {
         )}
       </div>
 
-      <TeacherActivityPhotosSection
+      <TeacherDaySummaryPhotosBlock
         t={t}
         dateYmd={activityPhotoDate}
         onDateChange={setActivityPhotoDate}
