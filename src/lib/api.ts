@@ -2,10 +2,12 @@ import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'ax
 import Cookies from 'js-cookie';
 import { defaultLocale, locales, type Locale } from '@/lib/i18n/config';
 
-/** Base de l’API Nest (`globalPrefix: api`). Ajoute `/api` si l’env ne le contient pas (évite les POST sur Next par erreur). */
+/** Base de l’API Nest (`globalPrefix: api`). Normalise `/api` et corrige un double `/api/api` fréquent en prod. */
 function resolveApiBaseUrl(): string {
-  const raw = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000').trim().replace(/\/+$/, '');
-  return raw.endsWith('/api') ? raw : `${raw}/api`;
+  let raw = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000').trim().replace(/\/+$/, '');
+  if (!raw.endsWith('/api')) raw = `${raw}/api`;
+  raw = raw.replace(/\/api\/api(\/|$)/, '/api$1');
+  return raw.replace(/\/+$/, '');
 }
 const API_BASE_URL = resolveApiBaseUrl();
 

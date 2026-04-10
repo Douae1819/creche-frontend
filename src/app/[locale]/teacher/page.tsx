@@ -64,7 +64,9 @@ const fromParticipationEnum = (v?: string): ResumeForm["participation"] => v ===
 
 type ClassActivityPhotoRow = { id: string; mimeType?: string; legende?: string | null }
 
-/** Album classe : carte compacte en bas de page + modale (multi-fichiers) — une fois pour toute la journée, pas par enfant */
+type StagedPhoto = { file: File; preview: string }
+
+/** Album classe : carte compacte en bas + modale (aperçu, envoi explicite, Terminer) — une fois / jour, pas par enfant */
 function TeacherActivityPhotosSection({
   t,
   dateYmd,
@@ -74,9 +76,8 @@ function TeacherActivityPhotosSection({
   legende,
   onLegendeChange,
   uploading,
-  onPickFiles,
+  onUploadFiles,
   onDelete,
-  fileInputRef,
 }: {
   t: (k: string, values?: Record<string, number | string>) => string
   dateYmd: string
@@ -86,11 +87,12 @@ function TeacherActivityPhotosSection({
   legende: string
   onLegendeChange: (v: string) => void
   uploading: boolean
-  onPickFiles: (files: FileList | null) => void
+  onUploadFiles: (files: File[]) => Promise<void>
   onDelete: (id: string) => void
-  fileInputRef: React.RefObject<HTMLInputElement | null>
 }) {
   const [modalOpen, setModalOpen] = useState(false)
+  const [staged, setStaged] = useState<StagedPhoto[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!modalOpen) return
@@ -100,6 +102,39 @@ function TeacherActivityPhotosSection({
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
   }, [modalOpen])
+
+  useEffect(() => {
+    if (modalOpen) return
+    setStaged(prev => {
+      prev.forEach(s => URL.revokeObjectURL(s.preview))
+      return []
+    })
+  }, [modalOpen])
+
+  const addFiles = (list: FileList | null) => {
+    if (!list?.length) return
+    const next = Array.from(list).map(file => ({ file, preview: URL.createObjectURL(file) }))
+    setStaged(prev => [...prev, ...next])
+  }
+
+  const removeStaged = (index: number) => {
+    setStaged(prev => {
+      const copy = [...prev]
+      const [removed] = copy.splice(index, 1)
+      if (removed) URL.revokeObjectURL(removed.preview)
+      return copy
+    })
+  }
+
+  const handleSendStaged = async () => {
+    if (staged.length === 0) return
+    const files = staged.map(s => s.file)
+    await onUploadFiles(files)
+    setStaged(prev => {
+      prev.forEach(s => URL.revokeObjectURL(s.preview))
+      return []
+    })
+  }
 
   return (
     <>
@@ -149,10 +184,10 @@ function TeacherActivityPhotosSection({
             role="dialog"
             aria-modal
             aria-labelledby="activity-photos-modal-title"
-            className="bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl shadow-xl max-h-[92vh] overflow-y-auto"
+            className="bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl shadow-xl max-h-[92vh] overflow-y-auto flex flex-col"
             onClick={e => e.stopPropagation()}
           >
-            <div className="sticky top-0 flex items-center justify-between border-b px-4 py-3 bg-white z-10 rounded-t-2xl">
+            <div className="sticky top-0 flex items-center justify-between border-b px-4 py-3 bg-white z-10 rounded-t-2xl shrink-0">
               <h3 id="activity-photos-modal-title" className="text-sm font-bold text-gray-900 pr-2">
                 {t("activityPhotosModalTitle")}
               </h3>
@@ -165,7 +200,7 @@ function TeacherActivityPhotosSection({
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-4 space-y-4">
+            <div className="p-4 space-y-4 overflow-y-auto flex-1 min-h-0">
               <div>
                 <span className="text-xs text-gray-600 block mb-1">{t("activityPhotosDate")}</span>
                 <Input
@@ -191,7 +226,7 @@ function TeacherActivityPhotosSection({
                 multiple
                 className="hidden"
                 onChange={e => {
-                  onPickFiles(e.target.files)
+                  addFiles(e.target.files)
                   e.target.value = ""
                 }}
               />
@@ -202,15 +237,50 @@ function TeacherActivityPhotosSection({
                 className="w-full gap-2 border-sky-300"
                 onClick={() => fileInputRef.current?.click()}
               >
-                {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
-                {uploading ? t("activityPhotosUploading") : t("activityPhotosPickMultiple")}
+                <Camera className="w-4 h-4" />
+                {t("activityPhotosPickMultiple")}
               </Button>
+              {staged.length > 0 ? (
+                <p className="text-xs font-medium text-sky-800">{t("activityPhotosStaged", { count: staged.length })}</p>
+              ) : null}
+              {staged.length > 0 ? (
+                <div className="grid grid-cols-3 gap-2">
+                  {staged.map((s, i) => (
+                    <div key={`${s.preview}-${i}`} className="relative rounded-lg overflow-hidden border border-sky-200 aspect-square">
+                      <img src={s.preview} alt="" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        className="absolute bottom-1 right-1 text-[10px] px-1.5 py-0.5 rounded bg-white/95 border border-gray-200 text-gray-700"
+                        onClick={() => removeStaged(i)}
+                      >
+                        {t("activityPhotosRemoveStaged")}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button
+                  type="button"
+                  className="flex-1 gap-2 bg-sky-500 hover:bg-sky-600 text-white"
+                  disabled={uploading || staged.length === 0}
+                  onClick={() => void handleSendStaged()}
+                >
+                  {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                  {uploading ? t("activityPhotosUploading") : t("activityPhotosSend")}
+                </Button>
+                <Button type="button" variant="secondary" className="flex-1" onClick={() => setModalOpen(false)}>
+                  {t("activityPhotosDone")}
+                </Button>
+              </div>
               <p className="text-xs text-gray-400">{t("activityPhotosMultipleHint")}</p>
               {loading ? (
-                <p className="text-sm text-gray-400 py-4">{t("activityPhotosLoading")}</p>
+                <p className="text-sm text-gray-400 py-2">{t("activityPhotosLoading")}</p>
               ) : photos.length === 0 ? (
-                <p className="text-sm text-gray-500 py-2">{t("activityPhotosEmpty")}</p>
+                <p className="text-sm text-gray-500 py-1 border-t pt-3">{t("activityPhotosEmpty")}</p>
               ) : (
+                <>
+                <p className="text-xs font-semibold text-gray-600 pt-3 border-t">{t("activityPhotosOnlineSection")}</p>
                 <div className="grid grid-cols-2 gap-3">
                   {photos.map(p => (
                     <div
@@ -230,6 +300,7 @@ function TeacherActivityPhotosSection({
                     </div>
                   ))}
                 </div>
+                </>
               )}
             </div>
           </div>
@@ -267,7 +338,6 @@ export default function TeacherDashboard() {
   const [classActivityPhotosLoading, setClassActivityPhotosLoading] = useState(false)
   const [activityPhotoLegende, setActivityPhotoLegende] = useState("")
   const [activityPhotoUploading, setActivityPhotoUploading] = useState(false)
-  const activityFileInputRef = useRef<HTMLInputElement>(null)
 
   const currentChild = children[currentChildIndex] ?? null
   const today = formatLocalDateKey(new Date())
@@ -437,8 +507,8 @@ export default function TeacherDashboard() {
     }
   }
 
-  const handleActivityPhotosPicked = async (files: FileList | null) => {
-    const list = files?.length ? Array.from(files) : []
+  const handleActivityPhotosUpload = async (files: File[]) => {
+    const list = files.filter(Boolean)
     if (!list.length || !teacherClass) return
     setActivityPhotoUploading(true)
     setSaveError(null)
@@ -663,9 +733,8 @@ export default function TeacherDashboard() {
           legende={activityPhotoLegende}
           onLegendeChange={setActivityPhotoLegende}
           uploading={activityPhotoUploading}
-          onPickFiles={handleActivityPhotosPicked}
+          onUploadFiles={handleActivityPhotosUpload}
           onDelete={handleDeleteActivityPhoto}
-          fileInputRef={activityFileInputRef}
         />
 
         {canNavigateToSummary && (
@@ -975,9 +1044,8 @@ export default function TeacherDashboard() {
         legende={activityPhotoLegende}
         onLegendeChange={setActivityPhotoLegende}
         uploading={activityPhotoUploading}
-        onPickFiles={handleActivityPhotosPicked}
+        onUploadFiles={handleActivityPhotosUpload}
         onDelete={handleDeleteActivityPhoto}
-        fileInputRef={activityFileInputRef}
       />
     </div>
   )
