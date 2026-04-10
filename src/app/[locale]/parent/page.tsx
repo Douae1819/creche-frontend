@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl"
 import { use } from "react"
 import { Locale } from "@/lib/i18n/config"
 import { apiClient } from "@/lib/api"
+import { ActivityPhotoFromApi } from "@/components/activity-photo-from-api"
 import { DailyResume } from "@/types/domain"
 import { formatLocalDateKey, safeDateForLocaleDisplay } from "@/lib/date-local"
 import { Home, CheckCircle2, Baby, Utensils, CalendarDays, ChevronLeft, ChevronRight, Pencil, Check, X, RefreshCw, XCircle, HelpCircle } from "lucide-react"
@@ -165,6 +166,12 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
   const [presenceStatForSelectedDay, setPresenceStatForSelectedDay] = useState<{ statut: string } | null>(null)
   const [presenceDayResumeLoading, setPresenceDayResumeLoading] = useState(false)
 
+  const [parentActivityPhotoDay, setParentActivityPhotoDay] = useState(() => formatLocalDateKey(new Date()))
+  const [parentClassActivityPhotos, setParentClassActivityPhotos] = useState<
+    { id: string; mimeType?: string; legende?: string | null }[]
+  >([])
+  const [parentClassActivityPhotosLoading, setParentClassActivityPhotosLoading] = useState(false)
+
   const profileRef = useRef<{ tuteurs?: any[]; telephone?: string; adresse?: string; prenom?: string | null } | null>(null)
   const [enfantsInFamily, setEnfantsInFamily] = useState<any[]>([])
   const STORAGE_ENFANT_ID = "petitspas-parent-selected-enfant-id"
@@ -223,6 +230,7 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
       d.setHours(0, 0, 0, 0)
       return d
     })
+    setParentActivityPhotoDay(formatLocalDateKey(new Date()))
     setResumeRefreshTick(tk => tk + 1)
   }
 
@@ -428,6 +436,27 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
     void loadTodayResume()
     return () => { cancelled = true }
   }, [child?.id, resumeRefreshTick])
+
+  // Photos d’activités (album de la classe — partagé pour tous les parents)
+  useEffect(() => {
+    if (!child?.classeId) return
+    let cancelled = false
+    ;(async () => {
+      setParentClassActivityPhotosLoading(true)
+      try {
+        const res = await apiClient.listParentClassActivityPhotos(String(child.classeId), {
+          date: parentActivityPhotoDay,
+        })
+        const data = (res.data as { data?: { id: string; mimeType?: string; legende?: string | null }[] })?.data
+        if (!cancelled) setParentClassActivityPhotos(Array.isArray(data) ? data : [])
+      } catch {
+        if (!cancelled) setParentClassActivityPhotos([])
+      } finally {
+        if (!cancelled) setParentClassActivityPhotosLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [child?.classeId, parentActivityPhotoDay, resumeRefreshTick])
 
   // Résumé + présence pour le jour choisi dans l’onglet Présence (jours précédents inclus)
   useEffect(() => {
@@ -728,6 +757,48 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
           {dailyMessage ? <p className="text-sm text-gray-700 leading-relaxed">{dailyMessage}</p> : <p className="text-sm text-gray-400">{t("ui.noMessageToday")}</p>}
         </CardContent>
       </Card>
+
+      {child?.classeId ? (
+        <Card className="border shadow-sm rounded-2xl" style={{ borderColor: "#AEDFF7" }}>
+          <CardHeader className="pb-3 border-b" style={{ borderColor: "#AEDFF7" }}>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle className="text-sm font-bold text-gray-900">{t("ui.classActivitiesTitle")}</CardTitle>
+                <p className="text-xs text-gray-500 mt-0.5">{t("ui.classActivitiesSubtitle")}</p>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-gray-600">{t("ui.classActivitiesPickDay")}</span>
+                <Input
+                  type="date"
+                  value={parentActivityPhotoDay}
+                  onChange={e => setParentActivityPhotoDay(e.target.value)}
+                  className="h-9 text-sm w-auto min-w-[9rem]"
+                />
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-4">
+            {parentClassActivityPhotosLoading ? (
+              <p className="text-sm text-gray-400 py-4">{t("ui.classActivitiesLoading")}</p>
+            ) : parentClassActivityPhotos.length === 0 ? (
+              <p className="text-sm text-gray-500">{t("ui.classActivitiesEmpty")}</p>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {parentClassActivityPhotos.map(p => (
+                  <div key={p.id} className="rounded-xl overflow-hidden border border-gray-100 bg-white shadow-sm">
+                    <ActivityPhotoFromApi
+                      photoId={p.id}
+                      linkToFull
+                      imgClassName="w-full h-32 object-cover"
+                    />
+                    {p.legende ? <p className="text-xs p-2 text-gray-600 line-clamp-2">{p.legende}</p> : null}
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
 
       {/* Events preview */}
       {upcomingEvents.length > 0 && (

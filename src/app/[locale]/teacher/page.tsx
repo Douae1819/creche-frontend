@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useParams } from "next/navigation"
 import Cookies from "js-cookie"
 
@@ -20,8 +20,9 @@ import { Input } from "@/components/ui/input"
 import Link from "next/link"
 import { useTranslations } from "next-intl"
 import { apiClient } from "@/lib/api"
+import { ActivityPhotoFromApi } from "@/components/activity-photo-from-api"
 import { formatLocalDateKey } from "@/lib/date-local"
-import { CheckCircle, XCircle, LayoutGrid, User } from "lucide-react"
+import { CheckCircle, XCircle, LayoutGrid, User, Camera, Trash2, Loader2 } from "lucide-react"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Enfant = {
@@ -61,6 +62,104 @@ const fromHumeurEnum      = (v?: string): ResumeForm["humeur"]       => v === "B
 const fromSiesteEnum      = (v?: string): ResumeForm["sieste"]       => v === "Excellent" ? "Longue" : v === "Moyen" ? "Courte" : "Moyenne"
 const fromParticipationEnum = (v?: string): ResumeForm["participation"] => v === "Bon" ? "Bonne" : v === "Faible" ? "Faible" : "Moyenne"
 
+type ClassActivityPhotoRow = { id: string; mimeType?: string; legende?: string | null }
+
+function TeacherActivityPhotosPanel({
+  t,
+  dateYmd,
+  onDateChange,
+  photos,
+  loading,
+  legende,
+  onLegendeChange,
+  uploading,
+  onFileChange,
+  onDelete,
+  fileInputRef,
+}: {
+  t: (k: string) => string
+  dateYmd: string
+  onDateChange: (v: string) => void
+  photos: ClassActivityPhotoRow[]
+  loading: boolean
+  legende: string
+  onLegendeChange: (v: string) => void
+  uploading: boolean
+  onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  onDelete: (id: string) => void
+  fileInputRef: React.RefObject<HTMLInputElement | null>
+}) {
+  return (
+    <Card className="border border-sky-100 shadow-sm rounded-2xl lg:col-span-3 bg-gradient-to-br from-sky-50/80 to-white">
+      <CardContent className="pt-4 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div>
+            <h2 className="text-base font-bold text-gray-900">{t("activityPhotosTitle")}</h2>
+            <p className="text-xs text-gray-500">{t("activityPhotosSubtitle")}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-600 whitespace-nowrap">{t("activityPhotosDate")}</span>
+            <Input
+              type="date"
+              value={dateYmd}
+              onChange={e => onDateChange(e.target.value)}
+              className="w-auto text-sm h-9"
+            />
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2 items-end">
+          <Input
+            value={legende}
+            onChange={e => onLegendeChange(e.target.value)}
+            placeholder={t("activityPhotosLegende")}
+            className="text-sm max-w-md flex-1 min-w-[140px]"
+          />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            capture="environment"
+            className="hidden"
+            onChange={onFileChange}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            disabled={uploading}
+            className="gap-2 border-sky-300"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+            {uploading ? t("activityPhotosUploading") : t("activityPhotosAdd")}
+          </Button>
+        </div>
+        {loading ? (
+          <p className="text-sm text-gray-400 py-4">{t("activityPhotosLoading")}</p>
+        ) : photos.length === 0 ? (
+          <p className="text-sm text-gray-500 py-3">{t("activityPhotosEmpty")}</p>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            {photos.map(p => (
+              <div key={p.id} className="relative group rounded-xl overflow-hidden border border-gray-200 bg-white shadow-sm">
+                <ActivityPhotoFromApi photoId={p.id} imgClassName="w-full h-36 object-cover" />
+                {p.legende ? <p className="text-xs p-2 text-gray-600 line-clamp-2">{p.legende}</p> : null}
+                <button
+                  type="button"
+                  onClick={() => onDelete(p.id)}
+                  className="absolute top-2 right-2 p-1.5 rounded-lg bg-white/90 border border-red-200 text-red-600 opacity-0 group-hover:opacity-100 transition-opacity shadow"
+                  aria-label={t("activityPhotosDelete")}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function TeacherDashboard() {
   const t = useTranslations("teacher.dashboard")
@@ -83,6 +182,13 @@ export default function TeacherDashboard() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [savingResume,  setSavingResume]  = useState(false)
   const [viewMode, setViewMode] = useState<"individual" | "overview">("individual")
+
+  const [activityPhotoDate, setActivityPhotoDate] = useState(() => formatLocalDateKey(new Date()))
+  const [classActivityPhotos, setClassActivityPhotos] = useState<ClassActivityPhotoRow[]>([])
+  const [classActivityPhotosLoading, setClassActivityPhotosLoading] = useState(false)
+  const [activityPhotoLegende, setActivityPhotoLegende] = useState("")
+  const [activityPhotoUploading, setActivityPhotoUploading] = useState(false)
+  const activityFileInputRef = useRef<HTMLInputElement>(null)
 
   const currentChild = children[currentChildIndex] ?? null
   const today = formatLocalDateKey(new Date())
@@ -203,6 +309,27 @@ export default function TeacherDashboard() {
     return () => { cancelled = true }
   }, [today])
 
+  useEffect(() => {
+    if (!teacherClass?.id) return
+    let cancelled = false
+    ;(async () => {
+      setClassActivityPhotosLoading(true)
+      try {
+        const res = await apiClient.listClassActivityPhotos({
+          classeId: teacherClass.id,
+          date: activityPhotoDate,
+        })
+        const data = (res.data as { data?: ClassActivityPhotoRow[] })?.data
+        if (!cancelled) setClassActivityPhotos(Array.isArray(data) ? data : [])
+      } catch {
+        if (!cancelled) setClassActivityPhotos([])
+      } finally {
+        if (!cancelled) setClassActivityPhotosLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [teacherClass?.id, activityPhotoDate])
+
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handlePresence = async (presence: "Present" | "Absent") => {
     if (!currentChild || !teacherClass) return
@@ -228,6 +355,54 @@ export default function TeacherDashboard() {
     } catch (e) {
       console.error("[Teacher] handlePresence error", e)
       setSaveError("Erreur lors de l'enregistrement de la présence")
+    }
+  }
+
+  const handleActivityPhotoFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]
+    e.target.value = ""
+    if (!f || !teacherClass) return
+    setActivityPhotoUploading(true)
+    setSaveError(null)
+    try {
+      await apiClient.uploadClassActivityPhoto(
+        teacherClass.id,
+        activityPhotoDate,
+        f,
+        activityPhotoLegende || undefined,
+      )
+      setActivityPhotoLegende("")
+      const res = await apiClient.listClassActivityPhotos({
+        classeId: teacherClass.id,
+        date: activityPhotoDate,
+      })
+      const data = (res.data as { data?: ClassActivityPhotoRow[] })?.data
+      setClassActivityPhotos(Array.isArray(data) ? data : [])
+      setSuccessMessage("Photo ajoutée")
+      setTimeout(() => setSuccessMessage(null), 2500)
+    } catch (err: unknown) {
+      const ax = err as { response?: { data?: { message?: string | string[] } } }
+      const m = ax?.response?.data?.message
+      setSaveError(
+        typeof m === "string"
+          ? m
+          : Array.isArray(m)
+            ? m.join(" ")
+            : "Envoi photo impossible — réessayer ou vérifier le type de fichier (jpeg, png, webp, gif).",
+      )
+    } finally {
+      setActivityPhotoUploading(false)
+    }
+  }
+
+  const handleDeleteActivityPhoto = async (id: string) => {
+    if (!teacherClass) return
+    setSaveError(null)
+    try {
+      await apiClient.deleteClassActivityPhoto(id)
+      setClassActivityPhotos(prev => prev.filter(p => p.id !== id))
+    } catch {
+      setSaveError("Suppression impossible")
     }
   }
 
@@ -399,6 +574,20 @@ export default function TeacherDashboard() {
             )
           })}
         </div>
+
+        <TeacherActivityPhotosPanel
+          t={t}
+          dateYmd={activityPhotoDate}
+          onDateChange={setActivityPhotoDate}
+          photos={classActivityPhotos}
+          loading={classActivityPhotosLoading}
+          legende={activityPhotoLegende}
+          onLegendeChange={setActivityPhotoLegende}
+          uploading={activityPhotoUploading}
+          onFileChange={handleActivityPhotoFile}
+          onDelete={handleDeleteActivityPhoto}
+          fileInputRef={activityFileInputRef}
+        />
 
         {canNavigateToSummary && (
           <div className="flex justify-end">
@@ -657,6 +846,20 @@ export default function TeacherDashboard() {
             </>)}
           </CardContent>
         </Card>
+
+        <TeacherActivityPhotosPanel
+          t={t}
+          dateYmd={activityPhotoDate}
+          onDateChange={setActivityPhotoDate}
+          photos={classActivityPhotos}
+          loading={classActivityPhotosLoading}
+          legende={activityPhotoLegende}
+          onLegendeChange={setActivityPhotoLegende}
+          uploading={activityPhotoUploading}
+          onFileChange={handleActivityPhotoFile}
+          onDelete={handleDeleteActivityPhoto}
+          fileInputRef={activityFileInputRef}
+        />
       </div>
 
       {/* Navigation & Progress */}

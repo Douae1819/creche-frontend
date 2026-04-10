@@ -437,6 +437,44 @@ class ApiClient {
     return this.client.get(`/parent/classes/${classeId}/menu`, { params: { date } });
   }
 
+  /** Photos d’activités (album de classe) — parent : enfant dans la classe */
+  listParentClassActivityPhotos(
+    classeId: string,
+    params?: { date?: string; dateFrom?: string; dateTo?: string },
+  ) {
+    return this.client.get(`/parent/classes/${classeId}/activity-photos`, { params });
+  }
+
+  /** Enseignant / admin */
+  listClassActivityPhotos(params: {
+    classeId: string;
+    date?: string;
+    dateFrom?: string;
+    dateTo?: string;
+  }) {
+    return this.client.get('/class-activity-photos', { params });
+  }
+
+  uploadClassActivityPhoto(classeId: string, date: string, file: File, legende?: string) {
+    const fd = new FormData();
+    fd.append('classeId', classeId);
+    fd.append('date', date);
+    fd.append('file', file);
+    if (legende?.trim()) fd.append('legende', legende.trim());
+    return this.client.post('/class-activity-photos', fd);
+  }
+
+  deleteClassActivityPhoto(photoId: string) {
+    return this.client.delete(`/class-activity-photos/${photoId}`);
+  }
+
+  /** Octets image (JWT) — pour affichage après liste (id + mimeType, pas d’URL publique). */
+  getClassActivityPhotoFile(photoId: string) {
+    return this.client.get<ArrayBuffer>(`/class-activity-photos/${photoId}/file`, {
+      responseType: 'arraybuffer',
+    });
+  }
+
   changePassword(oldPassword: string, newPassword: string) {
     return this.client.post('/parent/me/change-password', { oldPassword, newPassword });
   }
