@@ -22,7 +22,7 @@ import { useTranslations } from "next-intl"
 import { apiClient } from "@/lib/api"
 import { ActivityPhotoFromApi } from "@/components/activity-photo-from-api"
 import { formatLocalDateKey } from "@/lib/date-local"
-import { CheckCircle, XCircle, LayoutGrid, User, Camera, Trash2, Loader2 } from "lucide-react"
+import { CheckCircle, XCircle, LayoutGrid, User, Camera, Trash2, Loader2, X } from "lucide-react"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Enfant = {
@@ -64,7 +64,8 @@ const fromParticipationEnum = (v?: string): ResumeForm["participation"] => v ===
 
 type ClassActivityPhotoRow = { id: string; mimeType?: string; legende?: string | null }
 
-function TeacherActivityPhotosPanel({
+/** Album classe : carte compacte en bas de page + modale (multi-fichiers) — une fois pour toute la journée, pas par enfant */
+function TeacherActivityPhotosSection({
   t,
   dateYmd,
   onDateChange,
@@ -73,11 +74,11 @@ function TeacherActivityPhotosPanel({
   legende,
   onLegendeChange,
   uploading,
-  onFileChange,
+  onPickFiles,
   onDelete,
   fileInputRef,
 }: {
-  t: (k: string) => string
+  t: (k: string, values?: Record<string, number | string>) => string
   dateYmd: string
   onDateChange: (v: string) => void
   photos: ClassActivityPhotoRow[]
@@ -85,78 +86,156 @@ function TeacherActivityPhotosPanel({
   legende: string
   onLegendeChange: (v: string) => void
   uploading: boolean
-  onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  onPickFiles: (files: FileList | null) => void
   onDelete: (id: string) => void
   fileInputRef: React.RefObject<HTMLInputElement | null>
 }) {
+  const [modalOpen, setModalOpen] = useState(false)
+
+  useEffect(() => {
+    if (!modalOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setModalOpen(false)
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [modalOpen])
+
   return (
-    <Card className="border border-sky-100 shadow-sm rounded-2xl lg:col-span-3 bg-gradient-to-br from-sky-50/80 to-white">
-      <CardContent className="pt-4 space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-          <div>
-            <h2 className="text-base font-bold text-gray-900">{t("activityPhotosTitle")}</h2>
-            <p className="text-xs text-gray-500">{t("activityPhotosSubtitle")}</p>
+    <>
+      <Card
+        id="teacher-class-activity-photos"
+        className="border border-sky-100 shadow-sm rounded-2xl lg:col-span-3 bg-gradient-to-br from-sky-50/80 to-white scroll-mt-24"
+      >
+        <CardContent className="pt-4 space-y-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <h2 className="text-base font-bold text-gray-900">{t("activityPhotosTitle")}</h2>
+              <p className="text-xs text-gray-500">{t("activityPhotosEndHint")}</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-gray-600 whitespace-nowrap">{t("activityPhotosDate")}</span>
+              <Input
+                type="date"
+                value={dateYmd}
+                onChange={e => onDateChange(e.target.value)}
+                className="w-auto text-sm h-9"
+              />
+              <Button
+                type="button"
+                className="gap-2 bg-sky-500 hover:bg-sky-600 text-white shrink-0"
+                onClick={() => setModalOpen(true)}
+              >
+                <Camera className="w-4 h-4" />
+                {t("activityPhotosManage")}
+              </Button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-600 whitespace-nowrap">{t("activityPhotosDate")}</span>
-            <Input
-              type="date"
-              value={dateYmd}
-              onChange={e => onDateChange(e.target.value)}
-              className="w-auto text-sm h-9"
-            />
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2 items-end">
-          <Input
-            value={legende}
-            onChange={e => onLegendeChange(e.target.value)}
-            placeholder={t("activityPhotosLegende")}
-            className="text-sm max-w-md flex-1 min-w-[140px]"
-          />
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif"
-            capture="environment"
-            className="hidden"
-            onChange={onFileChange}
-          />
-          <Button
-            type="button"
-            variant="outline"
-            disabled={uploading}
-            className="gap-2 border-sky-300"
-            onClick={() => fileInputRef.current?.click()}
+          {loading ? (
+            <p className="text-sm text-gray-400">{t("activityPhotosLoading")}</p>
+          ) : (
+            <p className="text-sm text-gray-600">{t("activityPhotosCountThisDay", { count: photos.length })}</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {modalOpen ? (
+        <div
+          className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50"
+          role="presentation"
+          onClick={() => setModalOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal
+            aria-labelledby="activity-photos-modal-title"
+            className="bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl shadow-xl max-h-[92vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
           >
-            {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
-            {uploading ? t("activityPhotosUploading") : t("activityPhotosAdd")}
-          </Button>
-        </div>
-        {loading ? (
-          <p className="text-sm text-gray-400 py-4">{t("activityPhotosLoading")}</p>
-        ) : photos.length === 0 ? (
-          <p className="text-sm text-gray-500 py-3">{t("activityPhotosEmpty")}</p>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {photos.map(p => (
-              <div key={p.id} className="relative group rounded-xl overflow-hidden border border-gray-200 bg-white shadow-sm">
-                <ActivityPhotoFromApi photoId={p.id} imgClassName="w-full h-36 object-cover" />
-                {p.legende ? <p className="text-xs p-2 text-gray-600 line-clamp-2">{p.legende}</p> : null}
-                <button
-                  type="button"
-                  onClick={() => onDelete(p.id)}
-                  className="absolute top-2 right-2 p-1.5 rounded-lg bg-white/90 border border-red-200 text-red-600 opacity-0 group-hover:opacity-100 transition-opacity shadow"
-                  aria-label={t("activityPhotosDelete")}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+            <div className="sticky top-0 flex items-center justify-between border-b px-4 py-3 bg-white z-10 rounded-t-2xl">
+              <h3 id="activity-photos-modal-title" className="text-sm font-bold text-gray-900 pr-2">
+                {t("activityPhotosModalTitle")}
+              </h3>
+              <button
+                type="button"
+                className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 shrink-0"
+                onClick={() => setModalOpen(false)}
+                aria-label={t("activityPhotosClose")}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <span className="text-xs text-gray-600 block mb-1">{t("activityPhotosDate")}</span>
+                <Input
+                  type="date"
+                  value={dateYmd}
+                  onChange={e => onDateChange(e.target.value)}
+                  className="w-auto text-sm h-9"
+                />
               </div>
-            ))}
+              <div>
+                <label className="text-xs font-medium text-gray-700 block mb-1">{t("activityPhotosLegende")}</label>
+                <Input
+                  value={legende}
+                  onChange={e => onLegendeChange(e.target.value)}
+                  placeholder={t("activityPhotosLegende")}
+                  className="text-sm"
+                />
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                multiple
+                className="hidden"
+                onChange={e => {
+                  onPickFiles(e.target.files)
+                  e.target.value = ""
+                }}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                disabled={uploading}
+                className="w-full gap-2 border-sky-300"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+                {uploading ? t("activityPhotosUploading") : t("activityPhotosPickMultiple")}
+              </Button>
+              <p className="text-xs text-gray-400">{t("activityPhotosMultipleHint")}</p>
+              {loading ? (
+                <p className="text-sm text-gray-400 py-4">{t("activityPhotosLoading")}</p>
+              ) : photos.length === 0 ? (
+                <p className="text-sm text-gray-500 py-2">{t("activityPhotosEmpty")}</p>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  {photos.map(p => (
+                    <div
+                      key={p.id}
+                      className="relative group rounded-xl overflow-hidden border border-gray-200 bg-white shadow-sm"
+                    >
+                      <ActivityPhotoFromApi photoId={p.id} imgClassName="w-full h-36 object-cover" />
+                      {p.legende ? <p className="text-xs p-2 text-gray-600 line-clamp-2">{p.legende}</p> : null}
+                      <button
+                        type="button"
+                        onClick={() => onDelete(p.id)}
+                        className="absolute top-2 right-2 p-1.5 rounded-lg bg-white/90 border border-red-200 text-red-600 opacity-0 group-hover:opacity-100 sm:opacity-100 transition-opacity shadow"
+                        aria-label={t("activityPhotosDelete")}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        )}
-      </CardContent>
-    </Card>
+        </div>
+      ) : null}
+    </>
   )
 }
 
@@ -358,19 +437,16 @@ export default function TeacherDashboard() {
     }
   }
 
-  const handleActivityPhotoFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0]
-    e.target.value = ""
-    if (!f || !teacherClass) return
+  const handleActivityPhotosPicked = async (files: FileList | null) => {
+    const list = files?.length ? Array.from(files) : []
+    if (!list.length || !teacherClass) return
     setActivityPhotoUploading(true)
     setSaveError(null)
     try {
-      await apiClient.uploadClassActivityPhoto(
-        teacherClass.id,
-        activityPhotoDate,
-        f,
-        activityPhotoLegende || undefined,
-      )
+      const legende = activityPhotoLegende?.trim() || undefined
+      for (const f of list) {
+        await apiClient.uploadClassActivityPhoto(teacherClass.id, activityPhotoDate, f, legende)
+      }
       setActivityPhotoLegende("")
       const res = await apiClient.listClassActivityPhotos({
         classeId: teacherClass.id,
@@ -378,7 +454,7 @@ export default function TeacherDashboard() {
       })
       const data = (res.data as { data?: ClassActivityPhotoRow[] })?.data
       setClassActivityPhotos(Array.isArray(data) ? data : [])
-      setSuccessMessage("Photo ajoutée")
+      setSuccessMessage(list.length > 1 ? `${list.length} photos ajoutées` : "Photo ajoutée")
       setTimeout(() => setSuccessMessage(null), 2500)
     } catch (err: unknown) {
       const ax = err as { response?: { data?: { message?: string | string[] } } }
@@ -388,7 +464,7 @@ export default function TeacherDashboard() {
           ? m
           : Array.isArray(m)
             ? m.join(" ")
-            : "Envoi photo impossible — réessayer ou vérifier le type de fichier (jpeg, png, webp, gif).",
+            : "Envoi photo impossible — vérifier que l’API Nest est joignable (NEXT_PUBLIC_API_URL, ex. http://localhost:3000/api) et le type de fichier (jpeg, png, webp, gif).",
       )
     } finally {
       setActivityPhotoUploading(false)
@@ -543,23 +619,6 @@ export default function TeacherDashboard() {
           </div>
         </div>
 
-        {/* Photos activités : placé haut de page (vue classe) pour être visible sans scroller */}
-        <div id="teacher-class-activity-photos" className="scroll-mt-24">
-          <TeacherActivityPhotosPanel
-            t={t}
-            dateYmd={activityPhotoDate}
-            onDateChange={setActivityPhotoDate}
-            photos={classActivityPhotos}
-            loading={classActivityPhotosLoading}
-            legende={activityPhotoLegende}
-            onLegendeChange={setActivityPhotoLegende}
-            uploading={activityPhotoUploading}
-            onFileChange={handleActivityPhotoFile}
-            onDelete={handleDeleteActivityPhoto}
-            fileInputRef={activityFileInputRef}
-          />
-        </div>
-
         {/* Children grid — click to jump to individual view */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
           {children.map((child, idx) => {
@@ -594,6 +653,20 @@ export default function TeacherDashboard() {
             )
           })}
         </div>
+
+        <TeacherActivityPhotosSection
+          t={t}
+          dateYmd={activityPhotoDate}
+          onDateChange={setActivityPhotoDate}
+          photos={classActivityPhotos}
+          loading={classActivityPhotosLoading}
+          legende={activityPhotoLegende}
+          onLegendeChange={setActivityPhotoLegende}
+          uploading={activityPhotoUploading}
+          onPickFiles={handleActivityPhotosPicked}
+          onDelete={handleDeleteActivityPhoto}
+          fileInputRef={activityFileInputRef}
+        />
 
         {canNavigateToSummary && (
           <div className="flex justify-end">
@@ -653,23 +726,6 @@ export default function TeacherDashboard() {
           <button onClick={() => setSaveError(null)} className="ml-3 opacity-60 hover:opacity-100 text-base leading-none">✕</button>
         </div>
       )}
-
-      {/* Photos activités : en haut (vue individuelle) — avant le long formulaire résumé */}
-      <div id="teacher-class-activity-photos" className="scroll-mt-24">
-        <TeacherActivityPhotosPanel
-          t={t}
-          dateYmd={activityPhotoDate}
-          onDateChange={setActivityPhotoDate}
-          photos={classActivityPhotos}
-          loading={classActivityPhotosLoading}
-          legende={activityPhotoLegende}
-          onLegendeChange={setActivityPhotoLegende}
-          uploading={activityPhotoUploading}
-          onFileChange={handleActivityPhotoFile}
-          onDelete={handleDeleteActivityPhoto}
-          fileInputRef={activityFileInputRef}
-        />
-      </div>
 
       {/* Main layout */}
       <div className="mt-2 grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -909,6 +965,20 @@ export default function TeacherDashboard() {
           </Button>
         )}
       </div>
+
+      <TeacherActivityPhotosSection
+        t={t}
+        dateYmd={activityPhotoDate}
+        onDateChange={setActivityPhotoDate}
+        photos={classActivityPhotos}
+        loading={classActivityPhotosLoading}
+        legende={activityPhotoLegende}
+        onLegendeChange={setActivityPhotoLegende}
+        uploading={activityPhotoUploading}
+        onPickFiles={handleActivityPhotosPicked}
+        onDelete={handleDeleteActivityPhoto}
+        fileInputRef={activityFileInputRef}
+      />
     </div>
   )
 }

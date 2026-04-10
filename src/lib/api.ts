@@ -2,7 +2,12 @@ import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'ax
 import Cookies from 'js-cookie';
 import { defaultLocale, locales, type Locale } from '@/lib/i18n/config';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+/** Base de l’API Nest (`globalPrefix: api`). Ajoute `/api` si l’env ne le contient pas (évite les POST sur Next par erreur). */
+function resolveApiBaseUrl(): string {
+  const raw = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000').trim().replace(/\/+$/, '');
+  return raw.endsWith('/api') ? raw : `${raw}/api`;
+}
+const API_BASE_URL = resolveApiBaseUrl();
 
 /** Page de connexion = accueil localisé (`/[locale]`), pas `/auth/login-user` (souvent 404 hors `[locale]`). */
 function getBrowserLoginHomeUrl(): string {
@@ -461,7 +466,14 @@ class ApiClient {
     fd.append('date', date);
     fd.append('file', file);
     if (legende?.trim()) fd.append('legende', legende.trim());
-    return this.client.post('/class-activity-photos', fd);
+    return this.client.post('/class-activity-photos', fd, {
+      transformRequest: (data, headers) => {
+        if (typeof FormData !== 'undefined' && data instanceof FormData) {
+          delete (headers as Record<string, unknown>)['Content-Type'];
+        }
+        return data as FormData;
+      },
+    });
   }
 
   deleteClassActivityPhoto(photoId: string) {
