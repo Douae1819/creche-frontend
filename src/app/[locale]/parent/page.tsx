@@ -11,7 +11,7 @@ import { apiClient } from "@/lib/api"
 import { ActivityPhotoFromApi } from "@/components/activity-photo-from-api"
 import { DailyResume } from "@/types/domain"
 import { formatLocalDateKey, safeDateForLocaleDisplay } from "@/lib/date-local"
-import { Home, CheckCircle2, Baby, Utensils, CalendarDays, ChevronLeft, ChevronRight, Pencil, Check, X, RefreshCw, XCircle, HelpCircle } from "lucide-react"
+import { Home, CheckCircle2, Baby, Utensils, CalendarDays, ChevronLeft, ChevronRight, Pencil, Check, X, RefreshCw, XCircle, HelpCircle, Camera } from "lucide-react"
 
 const RESUME_DAYS_PAGE_SIZE = 7
 const MAX_RESUME_DAY_PAGE = 52
@@ -24,7 +24,7 @@ function daysFromTodayLocal(d: Date): number {
   return Math.round((t.getTime() - x.getTime()) / 86400000)
 }
 
-type Tab = "home" | "presence" | "child" | "menu" | "events"
+type Tab = "home" | "photos" | "presence" | "child" | "menu" | "events"
 
 /** Affichage parent : libellés + emoji (enums API ↔ saisie enseignant). */
 function parentResumeAppetit(v?: string | null): { emoji: string; text: string } {
@@ -458,6 +458,20 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
     return () => { cancelled = true }
   }, [child?.classeId, parentActivityPhotoDay, resumeRefreshTick])
 
+  const photoDayTodayStr = formatLocalDateKey(new Date())
+  const shiftParentActivityPhotoDay = (delta: number) => {
+    setParentActivityPhotoDay(prev => {
+      const d = new Date(`${prev}T12:00:00`)
+      if (Number.isNaN(d.getTime())) return prev
+      d.setDate(d.getDate() + delta)
+      const ymd = formatLocalDateKey(d)
+      if (delta > 0 && ymd > photoDayTodayStr) return photoDayTodayStr
+      return ymd
+    })
+  }
+  const goParentActivityPhotoToday = () => setParentActivityPhotoDay(photoDayTodayStr)
+
+
   // Résumé + présence pour le jour choisi dans l’onglet Présence (jours précédents inclus)
   useEffect(() => {
     if (!child?.id) return
@@ -597,6 +611,7 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
   // ─── Nav items ────────────────────────────────────────────────────────────
   const navItems: { id: Tab; icon: React.ReactNode; label: string }[] = [
     { id: "home",     icon: <Home className="w-5 h-5" />,          label: t("nav.home") },
+    { id: "photos",   icon: <Camera className="w-5 h-5" />,         label: t("nav.photos") },
     { id: "presence", icon: <CheckCircle2 className="w-5 h-5" />,  label: t("nav.presence") },
     { id: "child",    icon: <Baby className="w-5 h-5" />,          label: t("nav.child") },
     { id: "menu",     icon: <Utensils className="w-5 h-5" />,      label: t("nav.menu") },
@@ -676,6 +691,84 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
     )
   }
 
+  /** Album photos de classe (date + historique) — onglet Accueil et onglet Photos */
+  const ParentClassPhotosCard = () => {
+    if (!child?.classeId) return null
+    const atToday = parentActivityPhotoDay === photoDayTodayStr
+    return (
+      <Card
+        id="parent-class-activity-photos"
+        className="border shadow-sm rounded-2xl scroll-mt-24 md:scroll-mt-32"
+        style={{ borderColor: "#AEDFF7" }}
+      >
+        <CardHeader className="pb-3 border-b" style={{ borderColor: "#AEDFF7" }}>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <CardTitle className="text-sm font-bold text-gray-900">{t("ui.classActivitiesTitle")}</CardTitle>
+              <p className="text-xs text-gray-500 mt-0.5">{t("ui.classActivitiesSubtitle")}</p>
+            </div>
+            <div className="flex items-center gap-1 flex-wrap">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-9 w-9 shrink-0 rounded-xl"
+                onClick={() => shiftParentActivityPhotoDay(-1)}
+                aria-label={t("ui.classActivitiesPrevDay")}
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              <Input
+                type="date"
+                value={parentActivityPhotoDay}
+                onChange={e => setParentActivityPhotoDay(e.target.value)}
+                className="h-9 text-sm w-auto min-w-[9rem]"
+                aria-label={t("ui.classActivitiesPickDay")}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-9 w-9 shrink-0 rounded-xl"
+                onClick={() => shiftParentActivityPhotoDay(1)}
+                disabled={atToday}
+                aria-label={t("ui.classActivitiesNextDay")}
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="h-9 text-xs rounded-xl shrink-0"
+                onClick={goParentActivityPhotoToday}
+                disabled={atToday}
+              >
+                {t("ui.today")}
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-4">
+          {parentClassActivityPhotosLoading ? (
+            <p className="text-sm text-gray-400 py-4">{t("ui.classActivitiesLoading")}</p>
+          ) : parentClassActivityPhotos.length === 0 ? (
+            <p className="text-sm text-gray-500">{t("ui.classActivitiesEmpty")}</p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {parentClassActivityPhotos.map(p => (
+                <div key={p.id} className="rounded-xl overflow-hidden border border-gray-100 bg-white shadow-sm">
+                  <ActivityPhotoFromApi photoId={p.id} linkToFull imgClassName="w-full h-32 object-cover" />
+                  {p.legende ? <p className="text-xs p-2 text-gray-600 line-clamp-2">{p.legende}</p> : null}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    )
+  }
+
   // ─── Tab: Home ────────────────────────────────────────────────────────────
   const HomeTab = () => {
     const calendarTodayStr = formatLocalDateKey(new Date())
@@ -718,6 +811,8 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
         </div>
       </div>
 
+      <ParentClassPhotosCard />
+
       {/* Résumé du jour (même présentation que la saisie enseignant : 4 cartes) */}
       <Card className="border shadow-sm rounded-2xl" style={{ borderColor: "#AEDFF7" }}>
         <CardHeader className="pb-3 border-b" style={{ borderColor: "#AEDFF7" }}>
@@ -758,48 +853,6 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
         </CardContent>
       </Card>
 
-      {child?.classeId ? (
-        <Card className="border shadow-sm rounded-2xl" style={{ borderColor: "#AEDFF7" }}>
-          <CardHeader className="pb-3 border-b" style={{ borderColor: "#AEDFF7" }}>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <CardTitle className="text-sm font-bold text-gray-900">{t("ui.classActivitiesTitle")}</CardTitle>
-                <p className="text-xs text-gray-500 mt-0.5">{t("ui.classActivitiesSubtitle")}</p>
-              </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs text-gray-600">{t("ui.classActivitiesPickDay")}</span>
-                <Input
-                  type="date"
-                  value={parentActivityPhotoDay}
-                  onChange={e => setParentActivityPhotoDay(e.target.value)}
-                  className="h-9 text-sm w-auto min-w-[9rem]"
-                />
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-4">
-            {parentClassActivityPhotosLoading ? (
-              <p className="text-sm text-gray-400 py-4">{t("ui.classActivitiesLoading")}</p>
-            ) : parentClassActivityPhotos.length === 0 ? (
-              <p className="text-sm text-gray-500">{t("ui.classActivitiesEmpty")}</p>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {parentClassActivityPhotos.map(p => (
-                  <div key={p.id} className="rounded-xl overflow-hidden border border-gray-100 bg-white shadow-sm">
-                    <ActivityPhotoFromApi
-                      photoId={p.id}
-                      linkToFull
-                      imgClassName="w-full h-32 object-cover"
-                    />
-                    {p.legende ? <p className="text-xs p-2 text-gray-600 line-clamp-2">{p.legende}</p> : null}
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      ) : null}
-
       {/* Events preview */}
       {upcomingEvents.length > 0 && (
         <Card className="border shadow-sm rounded-2xl" style={{ borderColor: "#AEDFF7" }}>
@@ -822,6 +875,28 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
     </div>
     )
   }
+
+  // ─── Tab: Photos (album classe + historique) ─────────────────────────────
+  const PhotosTab = () => (
+    <div className="px-4 pt-4 pb-4 space-y-4">
+      <div className="rounded-2xl p-4 border" style={{ background: "#EBF6FB", borderColor: "#C5E8F7" }}>
+        <div className="flex items-start gap-3">
+          <span className="text-2xl shrink-0" aria-hidden>📷</span>
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">{t("ui.classActivitiesTitle")}</h2>
+            <p className="text-xs text-gray-600 mt-1 leading-relaxed">{t("ui.classActivitiesTabIntro")}</p>
+          </div>
+        </div>
+      </div>
+      {child?.classeId ? (
+        <ParentClassPhotosCard />
+      ) : (
+        <Card className="border shadow-sm rounded-2xl" style={{ borderColor: "#AEDFF7" }}>
+          <CardContent className="py-10 text-center text-sm text-gray-500">{t("ui.classActivitiesNoClass")}</CardContent>
+        </Card>
+      )}
+    </div>
+  )
 
   // ─── Tab: Presence ────────────────────────────────────────────────────────
   const PresenceTab = () => {
@@ -1468,12 +1543,12 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
     <div className="min-h-screen pb-20 md:pb-8 overflow-x-hidden" style={{ background: "#FFFFFF" }}>
       {/* Desktop tab bar */}
       <div className="hidden md:block sticky top-0 z-40 border-b" style={{ background: "rgba(255,255,255,0.96)", backdropFilter: "blur(8px)", borderColor: "#C5E8F7" }}>
-        <div className="max-w-2xl mx-auto px-4 flex gap-1 py-2">
+        <div className="max-w-3xl mx-auto px-2 flex flex-wrap gap-1 py-2 justify-center">
           {navItems.map(item => {
             const isActive = activeTab === item.id
             return (
               <button key={item.id} type="button" onClick={() => setActiveTab(item.id)}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-medium transition-all"
                 style={isActive ? { background: "#AEDFF7", color: "#1A1A1A" } : { color: "#6B7280" }}>
                 {item.icon}<span>{item.label}</span>
               </button>
@@ -1485,6 +1560,7 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
       {/* Content */}
       <div className="max-w-2xl mx-auto px-4 pt-4 md:pt-6">
         {activeTab === "home"     && <HomeTab />}
+        {activeTab === "photos"   && <PhotosTab />}
         {activeTab === "presence" && <PresenceTab />}
         {activeTab === "child"    && <ChildTab />}
         {activeTab === "menu"     && <MenuTab />}

@@ -9,6 +9,7 @@
   "parent": {
     "nav": {
       "home": "الرئيسية",
+      "photos": "صور",
       "presence": "الحضور",
       "child": "الطفل",
       "menu": "القائمة",
@@ -87,7 +88,11 @@
       "homeSummaryPresenceHint": "للتفاصيل يوماً بيوم (تواريخ أخرى، السجل) استخدم تبويب الحضور.",
       "classActivitiesTitle": "أنشطة الفصل",
       "classActivitiesSubtitle": "صور اليوم المشتركة لجميع الأطفال في الفصل.",
-      "classActivitiesPickDay": "يوم آخر",
+      "classActivitiesPickDay": "التاريخ",
+      "classActivitiesTabIntro": "صور يشاركها الفصل. غيّر التاريخ لاستعراض الأيام السابقة.",
+      "classActivitiesNoClass": "لا يوجد فصل مرتبط بهذا الطفل حالياً.",
+      "classActivitiesPrevDay": "اليوم السابق",
+      "classActivitiesNextDay": "اليوم التالي",
       "classActivitiesEmpty": "لا توجد صور لهذا اليوم.",
       "classActivitiesLoading": "جاري تحميل الصور…",
       "resumeWeekRange": "من {from} إلى {to}",
@@ -781,6 +786,7 @@
       "next": "التالي",
       "summaryCta": "ملخص اليوم",
       "activityPhotosTitle": "صور أنشطة اليوم",
+      "activityPhotosShortNav": "صور الأنشطة",
       "activityPhotosSubtitle": "ألبوم يظهر لجميع أولياء أمور الفصل (عدة صور في اليوم).",
       "activityPhotosDate": "اليوم",
       "activityPhotosAdd": "إضافة صورة",

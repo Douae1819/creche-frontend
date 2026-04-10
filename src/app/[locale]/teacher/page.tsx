@@ -517,7 +517,10 @@ export default function TeacherDashboard() {
             <h1 className="text-2xl font-bold text-gray-900">{teacherClass.nom}</h1>
             <p className="text-xs text-gray-500 mt-0.5 capitalize">{dateLabel}</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <Button variant="outline" size="sm" asChild className="text-xs">
+              <a href="#teacher-class-activity-photos">📷 {t("activityPhotosShortNav")}</a>
+            </Button>
             <Button variant="outline" size="sm" onClick={() => { setViewMode("individual"); setSaveError(null) }} className="text-xs">
               Vue individuelle
             </Button>
@@ -538,6 +541,23 @@ export default function TeacherDashboard() {
             <p className="text-2xl font-bold text-sky-600">{nbResumes}</p>
             <p className="text-xs text-gray-500 mt-0.5">Résumés faits</p>
           </div>
+        </div>
+
+        {/* Photos activités : placé haut de page (vue classe) pour être visible sans scroller */}
+        <div id="teacher-class-activity-photos" className="scroll-mt-24">
+          <TeacherActivityPhotosPanel
+            t={t}
+            dateYmd={activityPhotoDate}
+            onDateChange={setActivityPhotoDate}
+            photos={classActivityPhotos}
+            loading={classActivityPhotosLoading}
+            legende={activityPhotoLegende}
+            onLegendeChange={setActivityPhotoLegende}
+            uploading={activityPhotoUploading}
+            onFileChange={handleActivityPhotoFile}
+            onDelete={handleDeleteActivityPhoto}
+            fileInputRef={activityFileInputRef}
+          />
         </div>
 
         {/* Children grid — click to jump to individual view */}
@@ -575,20 +595,6 @@ export default function TeacherDashboard() {
           })}
         </div>
 
-        <TeacherActivityPhotosPanel
-          t={t}
-          dateYmd={activityPhotoDate}
-          onDateChange={setActivityPhotoDate}
-          photos={classActivityPhotos}
-          loading={classActivityPhotosLoading}
-          legende={activityPhotoLegende}
-          onLegendeChange={setActivityPhotoLegende}
-          uploading={activityPhotoUploading}
-          onFileChange={handleActivityPhotoFile}
-          onDelete={handleDeleteActivityPhoto}
-          fileInputRef={activityFileInputRef}
-        />
-
         {canNavigateToSummary && (
           <div className="flex justify-end">
             <Link href={`/${locale}/teacher/summary`}>
@@ -612,7 +618,10 @@ export default function TeacherDashboard() {
           <p className="text-xs text-gray-600 mt-0.5">{children.length} {children.length > 1 ? "élèves" : "élève"}</p>
           <p className="text-xs text-muted-foreground mt-0.5 capitalize">{dateLabel}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+            <Button variant="outline" size="sm" asChild className="text-xs gap-1">
+              <a href="#teacher-class-activity-photos">📷 {t("activityPhotosShortNav")}</a>
+            </Button>
           <Button
             variant="outline"
             size="sm"
@@ -644,6 +653,23 @@ export default function TeacherDashboard() {
           <button onClick={() => setSaveError(null)} className="ml-3 opacity-60 hover:opacity-100 text-base leading-none">✕</button>
         </div>
       )}
+
+      {/* Photos activités : en haut (vue individuelle) — avant le long formulaire résumé */}
+      <div id="teacher-class-activity-photos" className="scroll-mt-24">
+        <TeacherActivityPhotosPanel
+          t={t}
+          dateYmd={activityPhotoDate}
+          onDateChange={setActivityPhotoDate}
+          photos={classActivityPhotos}
+          loading={classActivityPhotosLoading}
+          legende={activityPhotoLegende}
+          onLegendeChange={setActivityPhotoLegende}
+          uploading={activityPhotoUploading}
+          onFileChange={handleActivityPhotoFile}
+          onDelete={handleDeleteActivityPhoto}
+          fileInputRef={activityFileInputRef}
+        />
+      </div>
 
       {/* Main layout */}
       <div className="mt-2 grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -846,20 +872,6 @@ export default function TeacherDashboard() {
             </>)}
           </CardContent>
         </Card>
-
-        <TeacherActivityPhotosPanel
-          t={t}
-          dateYmd={activityPhotoDate}
-          onDateChange={setActivityPhotoDate}
-          photos={classActivityPhotos}
-          loading={classActivityPhotosLoading}
-          legende={activityPhotoLegende}
-          onLegendeChange={setActivityPhotoLegende}
-          uploading={activityPhotoUploading}
-          onFileChange={handleActivityPhotoFile}
-          onDelete={handleDeleteActivityPhoto}
-          fileInputRef={activityFileInputRef}
-        />
       </div>
 
       {/* Navigation & Progress */}

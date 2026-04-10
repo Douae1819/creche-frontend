@@ -9,6 +9,7 @@
   "parent": {
     "nav": {
       "home": "Accueil",
+      "photos": "Photos",
       "presence": "Présence",
       "child": "Enfant",
       "menu": "Menu",
@@ -87,7 +88,11 @@
       "homeSummaryPresenceHint": "Le détail jour par jour (autres dates, historique) se consulte dans l’onglet Présence.",
       "classActivitiesTitle": "Activités de la classe",
       "classActivitiesSubtitle": "Photos du jour partagées pour toute la classe.",
-      "classActivitiesPickDay": "Voir un autre jour",
+      "classActivitiesPickDay": "Date",
+      "classActivitiesTabIntro": "Photos partagées par la classe. Changez de jour pour parcourir l’historique.",
+      "classActivitiesNoClass": "Aucune classe n’est associée à cet enfant pour le moment.",
+      "classActivitiesPrevDay": "Jour précédent",
+      "classActivitiesNextDay": "Jour suivant",
       "classActivitiesEmpty": "Aucune photo pour ce jour.",
       "classActivitiesLoading": "Chargement des photos…",
       "resumeWeekRange": "Du {from} au {to}",
@@ -781,6 +786,7 @@
       "next": "Suivant",
       "summaryCta": "Résumé jour",
       "activityPhotosTitle": "Photos des activités du jour",
+      "activityPhotosShortNav": "Photos activités",
       "activityPhotosSubtitle": "Album visible par tous les parents de la classe (plusieurs photos par jour).",
       "activityPhotosDate": "Jour",
       "activityPhotosAdd": "Ajouter une photo",
