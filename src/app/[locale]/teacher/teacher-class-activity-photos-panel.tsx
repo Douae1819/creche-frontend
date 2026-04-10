@@ -6,15 +6,23 @@ import { apiClient } from "@/lib/api"
 import { formatLocalDateKey } from "@/lib/date-local"
 import { TeacherActivityPhotosSection, type ClassActivityPhotoRow } from "./teacher-activity-photos"
 
-type PanelProps = {
+type TPhotos = (k: string, values?: Record<string, number | string>) => string
+
+type PanelCoreProps = {
   classeId: string
   /** Si fourni, la date est pilotée par le parent (ex. page résumé du jour). */
   dateYmd?: string
   onDateChange?: (v: string) => void
+  t: TPhotos
 }
 
-export function TeacherClassActivityPhotosPanel({ classeId, dateYmd: controlledDate, onDateChange }: PanelProps) {
-  const t = useTranslations("teacher.dashboard")
+/** Logique photos (sans next-intl) — pour pages hors `[locale]` ou tests. */
+export function TeacherClassActivityPhotosPanelCore({
+  classeId,
+  dateYmd: controlledDate,
+  onDateChange,
+  t,
+}: PanelCoreProps) {
   const [internalDate, setInternalDate] = useState(() => formatLocalDateKey(new Date()))
   const activityPhotoDate = controlledDate ?? internalDate
   const setActivityPhotoDate = onDateChange ?? setInternalDate
@@ -120,4 +128,44 @@ export function TeacherClassActivityPhotosPanel({ classeId, dateYmd: controlledD
       />
     </div>
   )
+}
+
+type PanelProps = Omit<PanelCoreProps, "t">
+
+export function TeacherClassActivityPhotosPanel(props: PanelProps) {
+  const t = useTranslations("teacher.dashboard")
+  return <TeacherClassActivityPhotosPanelCore {...props} t={t} />
+}
+
+const FR_ACTIVITY_PHOTOS: Record<string, string> = {
+  activityPhotosTitle: "Photos des activités du jour",
+  activityPhotosSubtitle: "Album visible par tous les parents de la classe (plusieurs photos par jour).",
+  activityPhotosDate: "Jour",
+  activityPhotosManage: "Gérer / envoyer des photos",
+  activityPhotosLoading: "Chargement…",
+  activityPhotosCountThisDay: "{count} photo(s) pour ce jour.",
+  activityPhotosModalTitle: "Envoyer des photos d’activités",
+  activityPhotosClose: "Fermer",
+  activityPhotosLegende: "Légende (optionnel)",
+  activityPhotosPickMultiple: "Choisir des images",
+  activityPhotosStaged: "{count} image(s) prête(s) à l’envoi",
+  activityPhotosRemoveStaged: "Retirer",
+  activityPhotosSend: "Envoyer les photos",
+  activityPhotosUploading: "Envoi en cours…",
+  activityPhotosMultipleHint:
+    "Choisissez des images, vérifiez l’aperçu, puis « Envoyer les photos ». Fermez avec ✕ ou en dehors de la fenêtre.",
+  activityPhotosEmpty: "Aucune photo pour ce jour.",
+  activityPhotosOnlineSection: "Déjà en ligne pour ce jour",
+  activityPhotosDelete: "Supprimer",
+}
+
+/** Libellés FR pour les photos sur `/teacher/...` (hors next-intl). */
+export function teacherDashboardActivityPhotosTFr(key: string, values?: Record<string, number | string>): string {
+  let s = FR_ACTIVITY_PHOTOS[key] ?? key
+  if (values) {
+    for (const [vk, vv] of Object.entries(values)) {
+      s = s.replaceAll(`{${vk}}`, String(vv))
+    }
+  }
+  return s
 }

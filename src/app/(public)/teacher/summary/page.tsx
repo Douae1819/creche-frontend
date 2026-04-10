@@ -1,9 +1,15 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { apiClient } from "@/lib/api"
+import { formatLocalDateKey } from "@/lib/date-local"
+import {
+  TeacherClassActivityPhotosPanelCore,
+  teacherDashboardActivityPhotosTFr,
+} from "@/app/[locale]/teacher/teacher-class-activity-photos-panel"
 
 export default function TeacherSummary() {
   const [summaryData] = useState({
@@ -32,6 +38,26 @@ export default function TeacherSummary() {
     bonne: 20,
     excellente: 6,
   })
+
+  const [classeId, setClasseId] = useState<string | null>(null)
+  const [summaryDate, setSummaryDate] = useState(() => formatLocalDateKey(new Date()))
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await apiClient.listClasses()
+        const classes = res.data?.data ?? res.data ?? []
+        const first = Array.isArray(classes) && classes.length > 0 ? (classes[0] as { id?: string }) : null
+        if (!cancelled && first?.id) setClasseId(first.id)
+      } catch {
+        if (!cancelled) setClasseId(null)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   return (
     <div className="space-y-6 max-w-7xl">
@@ -166,6 +192,18 @@ export default function TeacherSummary() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Photos classe (même flux que le tableau de bord localisé) — au-dessus du message */}
+      {classeId ? (
+        <TeacherClassActivityPhotosPanelCore
+          classeId={classeId}
+          dateYmd={summaryDate}
+          onDateChange={setSummaryDate}
+          t={teacherDashboardActivityPhotosTFr}
+        />
+      ) : (
+        <p className="text-sm text-gray-500">Chargement de la classe pour les photos…</p>
+      )}
 
       {/* Daily Message */}
       <Card className="border border-gray-200 shadow-sm">
