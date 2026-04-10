@@ -64,9 +64,12 @@ export default function TeacherDaySummaryPage() {
   const [classKpi, setClassKpi] = useState<ClassSummaryPayload | null>(null)
   const [collectiveId, setCollectiveId] = useState<string | null>(null)
   const [collectiveStatut, setCollectiveStatut] = useState<string | null>(null)
-  const [activites, setActivites] = useState("")
-  const [apprentissages, setApprentissages] = useState("")
-  const [humeurGroupe, setHumeurGroupe] = useState("")
+  /** Champs API requis, non affichés — conservés depuis le serveur ou « — » par défaut */
+  const [collectiveMeta, setCollectiveMeta] = useState({
+    activites: "—",
+    apprentissages: "—",
+    humeurGroupe: "—",
+  })
   const [observations, setObservations] = useState("")
   const [saving, setSaving] = useState(false)
   const [publishing, setPublishing] = useState(false)
@@ -133,15 +136,17 @@ export default function TeacherDaySummaryPage() {
         if (!cancelled) {
           if (row) {
             setCollectiveId(row.id)
-            setActivites(row.activites ?? "")
-            setApprentissages(row.apprentissages ?? "")
-            setHumeurGroupe(row.humeurGroupe ?? "")
+            setCollectiveStatut(row.statut ?? null)
+            setCollectiveMeta({
+              activites: (row.activites ?? "").trim() || "—",
+              apprentissages: (row.apprentissages ?? "").trim() || "—",
+              humeurGroupe: (row.humeurGroupe ?? "").trim() || "—",
+            })
             setObservations(row.observations ?? "")
           } else {
             setCollectiveId(null)
-            setActivites("")
-            setApprentissages("")
-            setHumeurGroupe("")
+            setCollectiveStatut(null)
+            setCollectiveMeta({ activites: "—", apprentissages: "—", humeurGroupe: "—" })
             setObservations("")
           }
         }
@@ -149,6 +154,8 @@ export default function TeacherDaySummaryPage() {
         if (!cancelled) {
           setCollectiveId(null)
           setCollectiveStatut(null)
+          setCollectiveMeta({ activites: "—", apprentissages: "—", humeurGroupe: "—" })
+          setObservations("")
         }
       }
     })()
@@ -166,9 +173,9 @@ export default function TeacherDaySummaryPage() {
 
   const persistCollective = async (): Promise<string | null> => {
     if (!teacherClass || isCollectivePublished) return collectiveId
-    const act = activites.trim() || "—"
-    const app = apprentissages.trim() || "—"
-    const hum = humeurGroupe.trim() || "—"
+    const act = collectiveMeta.activites.trim() || "—"
+    const app = collectiveMeta.apprentissages.trim() || "—"
+    const hum = collectiveMeta.humeurGroupe.trim() || "—"
     const obs = observations.trim() || undefined
     if (collectiveId) {
       await apiClient.updateClassDailySummary(collectiveId, {
@@ -328,44 +335,11 @@ export default function TeacherDaySummaryPage() {
         </div>
       </div>
 
-      <Card className="border border-gray-200 shadow-sm rounded-2xl">
-        <CardContent className="pt-4 space-y-4">
-          {isCollectivePublished ? (
-            <p className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
-              {t("errors.collectivePublishedReadonly")}
-            </p>
-          ) : null}
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">{tSections("collectiveActivitiesLabel")}</label>
-            <textarea
-              value={activites}
-              onChange={e => setActivites(e.target.value)}
-              rows={2}
-              disabled={isCollectivePublished}
-              className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-200 disabled:bg-gray-50 disabled:text-gray-500"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">{tSections("collectiveLearningLabel")}</label>
-            <textarea
-              value={apprentissages}
-              onChange={e => setApprentissages(e.target.value)}
-              rows={2}
-              disabled={isCollectivePublished}
-              className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-200 disabled:bg-gray-50 disabled:text-gray-500"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">{tSections("collectiveGroupMoodLabel")}</label>
-            <Input
-              value={humeurGroupe}
-              onChange={e => setHumeurGroupe(e.target.value)}
-              disabled={isCollectivePublished}
-              className="text-sm disabled:bg-gray-50"
-            />
-          </div>
-        </CardContent>
-      </Card>
+      {isCollectivePublished ? (
+        <p className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+          {t("errors.collectivePublishedReadonly")}
+        </p>
+      ) : null}
 
       <TeacherClassActivityPhotosPanel classeId={teacherClass.id} dateYmd={summaryDate} onDateChange={setSummaryDate} />
 
