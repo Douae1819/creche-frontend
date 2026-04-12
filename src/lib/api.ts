@@ -292,6 +292,10 @@ class ApiClient {
     return this.client.patch(`/admin/users/${id}/status`, { statut });
   }
 
+  updateUserEmailNotifications(id: string, emailNotificationsEnabled: boolean) {
+    return this.client.patch(`/admin/users/${id}/email-notifications`, { emailNotificationsEnabled });
+  }
+
   updateUserProfile(id: string, data: { prenom?: string; nom?: string; telephone?: string; fonction?: string; specialite?: string }) {
     return this.client.patch(`/admin/users/${id}`, data);
   }
