@@ -27,6 +27,7 @@ type UserProfile = {
   langue?: string | null;
   role: string;
   statut: string;
+  emailNotificationsEnabled?: boolean;
   creeLe?: string | null;
   modifieLe?: string | null;
   enseignant?: {
@@ -105,7 +106,9 @@ export default function AdminUserProfilePage({
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [notificationSaving, setNotificationSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [notificationError, setNotificationError] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({
     prenom: "",
     nom: "",
@@ -185,6 +188,23 @@ export default function AdminUserProfilePage({
       setSaveError(e?.response?.data?.message ?? "Erreur lors de la sauvegarde.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleToggleEmailNotifications = async (enabled: boolean) => {
+    if (!profile) return;
+    setNotificationSaving(true);
+    setNotificationError(null);
+    try {
+      await apiClient.updateUserEmailNotifications(userId, enabled);
+      setProfile((prev) => (prev ? { ...prev, emailNotificationsEnabled: enabled } : prev));
+    } catch (e: any) {
+      console.error("[Admin/UserProfile] email notifications toggle error", e);
+      setNotificationError(
+        e?.response?.data?.message ?? "Impossible de mettre à jour la préférence de notification.",
+      );
+    } finally {
+      setNotificationSaving(false);
     }
   };
 
@@ -276,6 +296,37 @@ export default function AdminUserProfilePage({
                     <p className="text-xs text-muted-foreground mb-0.5">Modifié le</p>
                     <p className="font-medium">{formatDate(profile.modifieLe)}</p>
                   </div>
+                </div>
+
+                <div className="mt-5 border-t pt-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">Notifications email</p>
+                      <p className="text-xs text-muted-foreground">
+                        Active/désactive les emails de notification pour ce compte (présence, événements, etc.).
+                      </p>
+                    </div>
+                    <label className="inline-flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={profile.emailNotificationsEnabled ?? true}
+                        disabled={notificationSaving}
+                        onChange={(e) => void handleToggleEmailNotifications(e.target.checked)}
+                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                      />
+                      <span className="font-medium">
+                        {profile.emailNotificationsEnabled ?? true ? "Activées" : "Désactivées"}
+                      </span>
+                    </label>
+                  </div>
+                  {notificationError && (
+                    <p className="text-xs text-destructive mt-2">{notificationError}</p>
+                  )}
+                  {profile.role !== "PARENT" && (
+                    <p className="text-[11px] text-muted-foreground mt-2">
+                      Note: cette option est surtout utile pour les comptes parent.
+                    </p>
+                  )}
                 </div>
               </Card>
 
