@@ -750,6 +750,8 @@
         "dailyMessageTitle": "رسالة اليوم",
         "dailyMessagePlaceholder": "لخص اليوم لأولياء الأمور...",
         "dailyMessageDefault": "اليوم عمل الأطفال على المهارات الحركية والرياضيات. مشاركة ممتازة وجو جميل!",
+        "aiRewriteButton": "إعادة الصياغة بالذكاء الاصطناعي",
+        "aiRewritingButton": "جارٍ إعادة الصياغة...",
         "saveButton": "حفظ",
         "sendAllButton": "إرسال للجميع",
         "finishDayButton": "إنهاء اليوم"
@@ -761,11 +763,14 @@
         "summaryUnavailable": "الملخص غير متاح",
         "saveMessageError": "خطأ عند حفظ الرسالة",
         "sendMessageError": "خطأ عند إرسال الرسالة",
+        "aiRewriteInputMissing": "اكتب مسودة أولاً في رسالة اليوم.",
+        "aiRewriteError": "تعذر إعادة صياغة الرسالة بالذكاء الاصطناعي حالياً.",
         "collectivePublishedReadonly": "هذا الملخص الجماعي منشور بالفعل — التعديل معطّل."
       },
       "success": {
         "dailyMessageSaved": "تم حفظ الرسالة",
-        "messageSentToParents": "تم إرسال الرسالة للأولياء"
+        "messageSentToParents": "تم إرسال الرسالة للأولياء",
+        "aiRewriteReady": "تم إدراج اقتراح الذكاء الاصطناعي. يمكنك تعديله قبل الإرسال."
       }
     },
     "dashboard": {

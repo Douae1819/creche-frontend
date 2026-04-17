@@ -409,6 +409,10 @@ class ApiClient {
     return this.client.patch(`/daily-resumes/${id}`, data);
   }
 
+  rewriteDailyMessageWithAi(text: string) {
+    return this.client.post('/ai/rewrite-daily-message', { text });
+  }
+
   // Generic auth password change (teacher + parent via /auth/change-password)
   changeAuthPassword(oldPassword: string, newPassword: string, confirmPassword: string) {
     return this.client.post('/auth/change-password', {

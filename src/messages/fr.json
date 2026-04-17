@@ -750,6 +750,8 @@
         "dailyMessageTitle": "Message de la journée",
         "dailyMessagePlaceholder": "Résumez la journée pour les parents...",
         "dailyMessageDefault": "Aujourd'hui, les enfants ont travaillé la motricité fine et les mathématiques. Excellente participation et bonne ambiance!",
+        "aiRewriteButton": "Reformuler avec IA",
+        "aiRewritingButton": "Reformulation IA...",
         "saveButton": "Enregistrer",
         "sendAllButton": "Envoyer à tous",
         "finishDayButton": "Terminer la journée"
@@ -761,11 +763,14 @@
         "summaryUnavailable": "Résumé indisponible",
         "saveMessageError": "Erreur lors de l enregistrement du message",
         "sendMessageError": "Erreur lors de l envoi du message",
+        "aiRewriteInputMissing": "Saisissez d'abord un brouillon dans le message de la journée.",
+        "aiRewriteError": "Impossible de reformuler le message avec l'IA pour le moment.",
         "collectivePublishedReadonly": "Ce résumé collectif est déjà publié — modification désactivée."
       },
       "success": {
         "dailyMessageSaved": "Message enregistré",
-        "messageSentToParents": "Message envoyé aux parents"
+        "messageSentToParents": "Message envoyé aux parents",
+        "aiRewriteReady": "Proposition IA insérée. Vous pouvez la modifier avant envoi."
       }
     },
     "dashboard": {

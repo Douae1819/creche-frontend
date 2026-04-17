@@ -9,6 +9,7 @@ import { formatLocalDateKey } from "@/lib/date-local"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Sparkles } from "lucide-react"
 import { TeacherClassActivityPhotosPanel } from "../teacher-class-activity-photos-panel"
 
 type Classe = { id: string; nom: string }
@@ -71,6 +72,7 @@ export default function TeacherDaySummaryPage() {
     humeurGroupe: "—",
   })
   const [observations, setObservations] = useState("")
+  const [aiRewriting, setAiRewriting] = useState(false)
   const [saving, setSaving] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [bannerOk, setBannerOk] = useState<string | null>(null)
@@ -274,6 +276,31 @@ export default function TeacherDaySummaryPage() {
     }
   }
 
+  const handleAiRewrite = async () => {
+    if (isCollectivePublished || aiRewriting) return
+    const source = observations.trim()
+    if (!source) {
+      setBannerErr(t("errors.aiRewriteInputMissing"))
+      return
+    }
+
+    setAiRewriting(true)
+    setBannerErr(null)
+    setBannerOk(null)
+    try {
+      const res = await apiClient.rewriteDailyMessageWithAi(source)
+      const message = String((res.data as { message?: string })?.message ?? "").trim()
+      if (!message) throw new Error("empty_ai_message")
+      setObservations(message)
+      setBannerOk(t("success.aiRewriteReady"))
+      setTimeout(() => setBannerOk(null), 2800)
+    } catch {
+      setBannerErr(t("errors.aiRewriteError"))
+    } finally {
+      setAiRewriting(false)
+    }
+  }
+
   if (loading) {
     return <div className="p-6 text-sm text-gray-600">{t("loading")}</div>
   }
@@ -359,13 +386,38 @@ export default function TeacherDaySummaryPage() {
           <div className="flex flex-wrap gap-2 pt-1">
             <Button
               type="button"
+              variant="outline"
+              disabled={aiRewriting || isCollectivePublished}
+              onClick={() => void handleAiRewrite()}
+              className={`relative overflow-hidden gap-2 border-sky-300 text-sky-700 transition-all duration-300 ${
+                aiRewriting
+                  ? "bg-sky-50/90 shadow-[0_0_0_1px_rgba(14,165,233,0.2),0_0_20px_rgba(56,189,248,0.35)]"
+                  : "hover:bg-sky-50"
+              }`}
+            >
+              {aiRewriting ? (
+                <>
+                  <span className="pointer-events-none absolute inset-0 bg-gradient-to-r from-transparent via-sky-200/40 to-transparent animate-pulse" />
+                  <Sparkles className="w-4 h-4 text-sky-600 animate-pulse" />
+                  <Sparkles className="w-3 h-3 text-sky-400 animate-bounce [animation-duration:1.4s]" />
+                </>
+              ) : (
+                <Sparkles className="w-4 h-4" />
+              )}
+              <span className="inline-flex items-center rounded-full bg-sky-100 text-sky-700 px-1.5 py-0.5 text-[10px] font-semibold leading-none border border-sky-200">
+                IA
+              </span>
+              {aiRewriting ? tSections("aiRewritingButton") : tSections("aiRewriteButton")}
+            </Button>
+            <Button
+              type="button"
               className="bg-sky-500 hover:bg-sky-600 text-white"
-              disabled={saving || isCollectivePublished}
+              disabled={saving || aiRewriting || isCollectivePublished}
               onClick={() => void handleSave()}
             >
               {saving ? "…" : tSections("saveButton")}
             </Button>
-            <Button type="button" variant="outline" disabled={publishing || isCollectivePublished} onClick={() => void handlePublish()}>
+            <Button type="button" variant="outline" disabled={publishing || aiRewriting || isCollectivePublished} onClick={() => void handlePublish()}>
               {publishing ? "…" : tSections("sendAllButton")}
             </Button>
             <Button type="button" variant="secondary" onClick={() => router.push(`/${locale}/teacher`)}>
