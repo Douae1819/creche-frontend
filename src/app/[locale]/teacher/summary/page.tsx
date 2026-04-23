@@ -347,6 +347,11 @@ export default function TeacherDaySummaryPage() {
       {bannerOk ? (
         <div className="rounded-md bg-emerald-50 border border-emerald-200 px-4 py-2 text-sm text-emerald-800">{bannerOk}</div>
       ) : null}
+      {isCollectivePublished ? (
+        <div className="rounded-md bg-emerald-50 border border-emerald-200 px-4 py-2 text-sm text-emerald-800">
+          Message envoyé aux parents. Vous pouvez le modifier avec le bouton Modifier.
+        </div>
+      ) : null}
       {bannerErr ? (
         <div className="flex items-center justify-between rounded-md bg-red-50 border border-red-200 px-4 py-2 text-sm text-red-700">
           <span>{bannerErr}</span>
@@ -415,17 +420,30 @@ export default function TeacherDaySummaryPage() {
               </span>
               {aiRewriting ? tSections("aiRewritingButton") : tSections("aiRewriteButton")}
             </Button>
-            <Button
-              type="button"
-              className="bg-sky-500 hover:bg-sky-600 text-white"
-              disabled={saving || aiRewriting}
-              onClick={() => void handleSave()}
-            >
-              {saving ? "…" : tSections("saveButton")}
-            </Button>
-            <Button type="button" variant="outline" disabled={publishing || aiRewriting} onClick={() => void handlePublish()}>
-              {publishing ? "…" : isCollectivePublished ? "Modifier le message envoyé" : tSections("sendAllButton")}
-            </Button>
+            {!isCollectivePublished ? (
+              <>
+                <Button
+                  type="button"
+                  className="bg-sky-500 hover:bg-sky-600 text-white"
+                  disabled={saving || aiRewriting}
+                  onClick={() => void handleSave()}
+                >
+                  {saving ? "…" : tSections("saveButton")}
+                </Button>
+                <Button type="button" variant="outline" disabled={publishing || aiRewriting} onClick={() => void handlePublish()}>
+                  {publishing ? "…" : tSections("sendAllButton")}
+                </Button>
+              </>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={publishing || aiRewriting}
+                onClick={() => void handlePublish()}
+              >
+                {publishing ? "…" : "Modifier"}
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
