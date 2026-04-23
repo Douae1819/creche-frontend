@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, Calendar } from "lucide-react";
+import { Plus, Trash2, Calendar, Pencil } from "lucide-react";
 import { SidebarNew } from "@/components/layout/sidebar-new";
 import { apiClient } from "@/lib/api";
 import { Locale } from "@/lib/i18n/config";
@@ -43,6 +43,7 @@ export default function EventsPage({ params }: { params: Promise<{ locale: Local
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showPast, setShowPast] = useState(false);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     titre: "",
@@ -54,6 +55,35 @@ export default function EventsPage({ params }: { params: Promise<{ locale: Local
     cost: "",
     currency: "MAD",
   });
+
+  const resetForm = () => {
+    setFormData({
+      titre: "",
+      description: "",
+      date: "",
+      startTime: "",
+      endTime: "",
+      classeId: "",
+      cost: "",
+      currency: "MAD",
+    });
+    setEditingEventId(null);
+  };
+
+  const toDateInputValue = (iso: string) => {
+    const d = new Date(iso);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const toTimeInputValue = (iso: string) => {
+    const d = new Date(iso);
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    return `${hh}:${mm}`;
+  };
 
   useEffect(() => {
     void loadData();
@@ -144,31 +174,33 @@ export default function EventsPage({ params }: { params: Promise<{ locale: Local
       const startAt = new Date(`${formData.date}T${formData.startTime}:00`).toISOString();
       const endAt = new Date(`${formData.date}T${formData.endTime}:00`).toISOString();
 
-      await apiClient.createAdminEvent({
-        titre: formData.titre,
-        description: formData.description || undefined,
-        startAt,
-        endAt,
-        classeId: formData.classeId,
-        cost: formData.cost.trim() === "" ? undefined : Number(formData.cost),
-        currency: formData.cost.trim() === "" ? undefined : formData.currency.toUpperCase(),
-      });
+      if (editingEventId) {
+        await apiClient.updateAdminEvent(editingEventId, {
+          titre: formData.titre,
+          description: formData.description || undefined,
+          startAt,
+          endAt,
+          classeId: formData.classeId,
+          cost: formData.cost.trim() === "" ? null : Number(formData.cost),
+          currency: formData.cost.trim() === "" ? null : formData.currency.toUpperCase(),
+        });
+      } else {
+        await apiClient.createAdminEvent({
+          titre: formData.titre,
+          description: formData.description || undefined,
+          startAt,
+          endAt,
+          classeId: formData.classeId,
+          cost: formData.cost.trim() === "" ? undefined : Number(formData.cost),
+          currency: formData.cost.trim() === "" ? undefined : formData.currency.toUpperCase(),
+        });
+      }
 
       await loadData();
-
-      setFormData({
-        titre: "",
-        description: "",
-        date: "",
-        startTime: "",
-        endTime: "",
-        classeId: "",
-        cost: "",
-        currency: "MAD",
-      });
+      resetForm();
       setShowForm(false);
     } catch (err: any) {
-      console.error("[Admin/Events] Error creating event", err);
+      console.error("[Admin/Events] Error saving event", err);
       const apiMessage = err?.response?.data?.message;
       if (typeof apiMessage === "string") {
         setError(apiMessage);
@@ -180,6 +212,26 @@ export default function EventsPage({ params }: { params: Promise<{ locale: Local
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleEdit = (ev: EventItem) => {
+    setError(null);
+    setEditingEventId(ev.id);
+    setShowForm(true);
+    setFormData({
+      titre: ev.titre,
+      description: ev.description ?? "",
+      date: toDateInputValue(ev.startAt),
+      startTime: toTimeInputValue(ev.startAt),
+      endTime: toTimeInputValue(ev.endAt),
+      classeId: ev.classeId ?? "",
+      cost: typeof ev.cost === "number" ? String(ev.cost) : "",
+      currency:
+        typeof ev.currency === "string" &&
+        SUPPORTED_EVENT_CURRENCIES.includes(ev.currency as (typeof SUPPORTED_EVENT_CURRENCIES)[number])
+          ? ev.currency
+          : "MAD",
+    });
   };
 
   const handleDelete = async (id: string) => {
@@ -234,11 +286,20 @@ export default function EventsPage({ params }: { params: Promise<{ locale: Local
               </p>
             </div>
             <Button
-              onClick={() => setShowForm(!showForm)}
+              onClick={() => {
+                if (showForm) {
+                  resetForm();
+                  setShowForm(false);
+                  return;
+                }
+                setShowForm(true);
+              }}
               className="gap-2 bg-primary hover:bg-primary/90 flex-shrink-0"
             >
               <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">{showForm ? "Fermer" : "Ajouter un événement"}</span>
+              <span className="hidden sm:inline">
+                {showForm ? "Fermer" : "Ajouter un événement"}
+              </span>
               <span className="sm:hidden">{showForm ? "Fermer" : "Ajouter"}</span>
             </Button>
           </div>
@@ -252,7 +313,7 @@ export default function EventsPage({ params }: { params: Promise<{ locale: Local
           {showForm && (
             <Card className="p-6 border-2 border-primary/20">
               <h2 className="text-lg font-semibold text-foreground mb-4">
-                {t("formTitle")}
+                {editingEventId ? "Modifier un événement" : t("formTitle")}
               </h2>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -377,12 +438,13 @@ export default function EventsPage({ params }: { params: Promise<{ locale: Local
 
                 <div className="flex gap-3 pt-4">
                   <Button type="submit" className="bg-primary hover:bg-primary/90" disabled={saving}>
-                    {saving ? "Enregistrement…" : "Créer"}
+                    {saving ? "Enregistrement…" : editingEventId ? "Mettre à jour" : "Créer"}
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => {
+                      resetForm();
                       setShowForm(false);
                     }}
                   >
@@ -435,14 +497,24 @@ export default function EventsPage({ params }: { params: Promise<{ locale: Local
                       </div>
                     </div>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1 text-destructive hover:bg-destructive/10 flex-shrink-0"
-                    onClick={() => handleDelete(ev.id)}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  <div className="flex flex-col gap-2 flex-shrink-0">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1 hover:bg-muted"
+                      onClick={() => handleEdit(ev)}
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1 text-destructive hover:bg-destructive/10"
+                      onClick={() => handleDelete(ev.id)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
               </Card>
             );
