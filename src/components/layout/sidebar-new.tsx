@@ -9,6 +9,8 @@ import { cn } from "@/lib/utils";
 import Cookies from "js-cookie";
 import { useAuthStore } from "@/modules/auth/store";
 import { LanguageSwitcher } from "@/components/ui/language-switcher";
+import { apiClient } from "@/lib/api";
+import { clearSessionTokens } from "@/lib/auth-session";
 import {
   LayoutDashboard,
   Users,
@@ -129,12 +131,13 @@ export function SidebarNew({ currentLocale }: { currentLocale: string }) {
     );
   };
 
-  const handleLogout = () => {
-    clearAuthStore(); // Purge Zustand state + auth_token cookie
-    document.cookie = "token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-    document.cookie = "auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+  const handleLogout = async () => {
+    await apiClient.logout();
+    clearAuthStore();
+    clearSessionTokens();
     try {
       localStorage.removeItem("token");
+      localStorage.removeItem("auth_token");
     } catch {
       // ignore
     }
@@ -426,8 +429,8 @@ export function SidebarNew({ currentLocale }: { currentLocale: string }) {
             </div>
             <p className="text-sm text-gray-600">{t('logoutConfirmMessage')}</p>
             <div className="flex gap-3 pt-1">
-              <button
-                onClick={handleLogout}
+            <button
+              onClick={() => void handleLogout()}
                 className="flex-1 rounded-lg bg-destructive px-4 py-2 text-sm font-semibold text-white hover:bg-destructive/90 transition-colors"
               >
                 {t('logoutConfirmYes')}

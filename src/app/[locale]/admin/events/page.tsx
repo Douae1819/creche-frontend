@@ -19,12 +19,16 @@ interface EventItem {
   startAt: string;
   endAt: string;
   classeId?: string | null;
+  cost?: number | null;
+  currency?: string | null;
 }
 
 interface ClasseItem {
   id: string;
   nom: string;
 }
+
+const SUPPORTED_EVENT_CURRENCIES = ["MAD", "EUR", "USD"] as const;
 
 export default function EventsPage({ params }: { params: Promise<{ locale: Locale }> }) {
   const resolvedParams = use(params);
@@ -47,6 +51,8 @@ export default function EventsPage({ params }: { params: Promise<{ locale: Local
     startTime: "",
     endTime: "",
     classeId: "",
+    cost: "",
+    currency: "MAD",
   });
 
   useEffect(() => {
@@ -89,6 +95,8 @@ export default function EventsPage({ params }: { params: Promise<{ locale: Local
           startAt: ev.startAt,
           endAt: ev.endAt,
           classeId: ev.classeId ?? null,
+          cost: typeof ev.cost === "number" ? ev.cost : typeof ev.cout === "number" ? ev.cout : null,
+          currency: typeof ev.currency === "string" ? ev.currency : typeof ev.devise === "string" ? ev.devise : null,
         })),
       );
 
@@ -120,6 +128,14 @@ export default function EventsPage({ params }: { params: Promise<{ locale: Local
       setError(t("validationError"));
       return;
     }
+    if (formData.cost.trim() !== "" && Number.isNaN(Number(formData.cost))) {
+      setError("Le coût doit être un nombre valide.");
+      return;
+    }
+    if (!SUPPORTED_EVENT_CURRENCIES.includes(formData.currency as (typeof SUPPORTED_EVENT_CURRENCIES)[number])) {
+      setError("La monnaie sélectionnée n'est pas supportée.");
+      return;
+    }
 
     try {
       setSaving(true);
@@ -134,6 +150,8 @@ export default function EventsPage({ params }: { params: Promise<{ locale: Local
         startAt,
         endAt,
         classeId: formData.classeId,
+        cost: formData.cost.trim() === "" ? undefined : Number(formData.cost),
+        currency: formData.cost.trim() === "" ? undefined : formData.currency.toUpperCase(),
       });
 
       await loadData();
@@ -145,6 +163,8 @@ export default function EventsPage({ params }: { params: Promise<{ locale: Local
         startTime: "",
         endTime: "",
         classeId: "",
+        cost: "",
+        currency: "MAD",
       });
       setShowForm(false);
     } catch (err: any) {
@@ -321,6 +341,40 @@ export default function EventsPage({ params }: { params: Promise<{ locale: Local
                   </div>
                 </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">
+                      Coût
+                    </label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      name="cost"
+                      value={formData.cost}
+                      onChange={handleInputChange}
+                      placeholder="Ex: 120"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">
+                      Monnaie
+                    </label>
+                    <select
+                      name="currency"
+                      value={formData.currency}
+                      onChange={handleInputChange}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      {SUPPORTED_EVENT_CURRENCIES.map((currencyCode) => (
+                        <option key={currencyCode} value={currencyCode}>
+                          {currencyCode}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
                 <div className="flex gap-3 pt-4">
                   <Button type="submit" className="bg-primary hover:bg-primary/90" disabled={saving}>
                     {saving ? "Enregistrement…" : "Créer"}
@@ -366,9 +420,20 @@ export default function EventsPage({ params }: { params: Promise<{ locale: Local
                     <p className="text-sm text-muted-foreground">
                       {formatDateTime(ev.startAt)} → {formatDateTime(ev.endAt)}
                     </p>
-                    {ev.description && (
-                      <p className="text-sm text-foreground mt-1.5">{ev.description}</p>
-                    )}
+                    <div className="mt-2 space-y-2">
+                      <div className="rounded-md border border-gray-200 bg-gray-50 p-2">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Description</p>
+                        <p className="text-sm text-foreground mt-1 whitespace-pre-wrap">
+                          {ev.description?.trim() || "Aucune description"}
+                        </p>
+                      </div>
+                      <div className="rounded-md border border-sky-200 bg-sky-50 p-2">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-sky-700">Coût</p>
+                        <p className="text-sm font-semibold text-sky-800 mt-1">
+                          {typeof ev.cost === "number" ? `${ev.cost} ${ev.currency || "MAD"}` : "Non renseigné"}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                   <Button
                     size="sm"

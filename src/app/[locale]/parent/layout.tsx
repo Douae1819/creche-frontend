@@ -10,6 +10,7 @@ import { type Locale } from "@/lib/i18n/config"
 import { cn } from "@/lib/utils"
 import { hrefForLocaleFromPathname, setNextIntlLocaleCookie, withLocalePath } from "@/lib/i18n/locale-path"
 import { apiClient } from "@/lib/api"
+import { clearSessionTokens } from "@/lib/auth-session"
 
 export default function ParentLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || "/"
@@ -28,6 +29,7 @@ export default function ParentLayout({ children }: { children: React.ReactNode }
 
   const handleLogout = async () => {
     await apiClient.logout()
+    clearSessionTokens()
     try {
       localStorage.removeItem("token")
       localStorage.removeItem("auth_token")

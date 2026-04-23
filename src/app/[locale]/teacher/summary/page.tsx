@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { useParams, useRouter } from "next/navigation"
+import { useParams } from "next/navigation"
 import { useTranslations } from "next-intl"
 import { apiClient } from "@/lib/api"
 import { formatLocalDateKey } from "@/lib/date-local"
@@ -55,7 +55,6 @@ export default function TeacherDaySummaryPage() {
   const t = useTranslations("teacher.summary")
   const tSections = useTranslations("teacher.summary.sections")
   const params = useParams()
-  const router = useRouter()
   const locale = (params?.locale as string) ?? "fr"
 
   const [loading, setLoading] = useState(true)
@@ -77,6 +76,31 @@ export default function TeacherDaySummaryPage() {
   const [publishing, setPublishing] = useState(false)
   const [bannerOk, setBannerOk] = useState<string | null>(null)
   const [bannerErr, setBannerErr] = useState<string | null>(null)
+
+  const loadCollectiveSummary = async (classId: string, date: string) => {
+    const res = await apiClient.listClassDailySummaries({
+      classeId: classId,
+      date,
+      pageSize: 10,
+    })
+    const rows = unwrapList<CollectiveRow>(res)
+    const row = rows[0] ?? null
+    if (row) {
+      setCollectiveId(row.id)
+      setCollectiveStatut(row.statut ?? null)
+      setCollectiveMeta({
+        activites: (row.activites ?? "").trim() || "—",
+        apprentissages: (row.apprentissages ?? "").trim() || "—",
+        humeurGroupe: (row.humeurGroupe ?? "").trim() || "—",
+      })
+      setObservations(row.observations ?? "")
+    } else {
+      setCollectiveId(null)
+      setCollectiveStatut(null)
+      setCollectiveMeta({ activites: "—", apprentissages: "—", humeurGroupe: "—" })
+      setObservations("")
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -128,30 +152,7 @@ export default function TeacherDaySummaryPage() {
     let cancelled = false
     ;(async () => {
       try {
-        const res = await apiClient.listClassDailySummaries({
-          classeId: teacherClass.id,
-          date: summaryDate,
-          pageSize: 10,
-        })
-        const rows = unwrapList<CollectiveRow>(res)
-        const row = rows[0] ?? null
-        if (!cancelled) {
-          if (row) {
-            setCollectiveId(row.id)
-            setCollectiveStatut(row.statut ?? null)
-            setCollectiveMeta({
-              activites: (row.activites ?? "").trim() || "—",
-              apprentissages: (row.apprentissages ?? "").trim() || "—",
-              humeurGroupe: (row.humeurGroupe ?? "").trim() || "—",
-            })
-            setObservations(row.observations ?? "")
-          } else {
-            setCollectiveId(null)
-            setCollectiveStatut(null)
-            setCollectiveMeta({ activites: "—", apprentissages: "—", humeurGroupe: "—" })
-            setObservations("")
-          }
-        }
+        await loadCollectiveSummary(teacherClass.id, summaryDate)
       } catch {
         if (!cancelled) {
           setCollectiveId(null)
@@ -174,7 +175,7 @@ export default function TeacherDaySummaryPage() {
   const isCollectivePublished = collectiveStatut === "Publie"
 
   const persistCollective = async (): Promise<string | null> => {
-    if (!teacherClass || isCollectivePublished) return collectiveId
+    if (!teacherClass) return collectiveId
     const act = collectiveMeta.activites.trim() || "—"
     const app = collectiveMeta.apprentissages.trim() || "—"
     const hum = collectiveMeta.humeurGroupe.trim() || "—"
@@ -232,15 +233,18 @@ export default function TeacherDaySummaryPage() {
   }
 
   const handleSave = async () => {
-    if (!teacherClass || isCollectivePublished) return
+    if (!teacherClass) return
+    const classId = teacherClass.id
     setSaving(true)
     setBannerErr(null)
     setBannerOk(null)
     try {
       await persistCollective()
-      setBannerOk(t("success.dailyMessageSaved"))
+      await loadCollectiveSummary(classId, summaryDate)
+      setBannerOk(isCollectivePublished ? "Message mis à jour." : t("success.dailyMessageSaved"))
       setTimeout(() => setBannerOk(null), 3000)
     } catch (e: unknown) {
+      await loadCollectiveSummary(classId, summaryDate)
       const ax = e as { response?: { data?: { message?: string } } }
       const m = ax?.response?.data?.message
       setBannerErr(typeof m === "string" ? m : t("errors.saveMessageError"))
@@ -250,11 +254,19 @@ export default function TeacherDaySummaryPage() {
   }
 
   const handlePublish = async () => {
-    if (!teacherClass || isCollectivePublished) return
+    if (!teacherClass) return
+    const classId = teacherClass.id
     setPublishing(true)
     setBannerErr(null)
     setBannerOk(null)
     try {
+      if (isCollectivePublished) {
+        await persistCollective()
+        await loadCollectiveSummary(classId, summaryDate)
+        setBannerOk("Message envoyé mis à jour.")
+        setTimeout(() => setBannerOk(null), 3000)
+        return
+      }
       let id = collectiveId
       if (!id) {
         id = await persistCollective()
@@ -264,10 +276,11 @@ export default function TeacherDaySummaryPage() {
         return
       }
       await apiClient.publishClassDailySummary(id)
-      setCollectiveStatut("Publie")
-      setBannerOk(t("success.messageSentToParents"))
+      await loadCollectiveSummary(classId, summaryDate)
+      setBannerOk(`${t("success.messageSentToParents")} Vous pouvez encore le modifier ici.`)
       setTimeout(() => setBannerOk(null), 3500)
     } catch (e: unknown) {
+      await loadCollectiveSummary(classId, summaryDate)
       const ax = e as { response?: { data?: { message?: string } } }
       const m = ax?.response?.data?.message
       setBannerErr(typeof m === "string" ? m : t("errors.sendMessageError"))
@@ -277,7 +290,7 @@ export default function TeacherDaySummaryPage() {
   }
 
   const handleAiRewrite = async () => {
-    if (isCollectivePublished || aiRewriting) return
+    if (aiRewriting) return
     const source = observations.trim()
     if (!source) {
       setBannerErr(t("errors.aiRewriteInputMissing"))
@@ -362,12 +375,6 @@ export default function TeacherDaySummaryPage() {
         </div>
       </div>
 
-      {isCollectivePublished ? (
-        <p className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
-          {t("errors.collectivePublishedReadonly")}
-        </p>
-      ) : null}
-
       <TeacherClassActivityPhotosPanel classeId={teacherClass.id} dateYmd={summaryDate} onDateChange={setSummaryDate} />
 
       <Card className="border border-gray-200 shadow-sm rounded-2xl">
@@ -380,14 +387,13 @@ export default function TeacherDaySummaryPage() {
             onChange={e => setObservations(e.target.value)}
             placeholder={tSections("dailyMessagePlaceholder")}
             rows={5}
-            disabled={isCollectivePublished}
             className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-200 disabled:bg-gray-50 disabled:text-gray-500"
           />
           <div className="flex flex-wrap gap-2 pt-1">
             <Button
               type="button"
               variant="outline"
-              disabled={aiRewriting || isCollectivePublished}
+              disabled={aiRewriting}
               onClick={() => void handleAiRewrite()}
               className={`relative overflow-hidden gap-2 border-sky-300 text-sky-700 transition-all duration-300 ${
                 aiRewriting
@@ -412,16 +418,13 @@ export default function TeacherDaySummaryPage() {
             <Button
               type="button"
               className="bg-sky-500 hover:bg-sky-600 text-white"
-              disabled={saving || aiRewriting || isCollectivePublished}
+              disabled={saving || aiRewriting}
               onClick={() => void handleSave()}
             >
               {saving ? "…" : tSections("saveButton")}
             </Button>
-            <Button type="button" variant="outline" disabled={publishing || aiRewriting || isCollectivePublished} onClick={() => void handlePublish()}>
-              {publishing ? "…" : tSections("sendAllButton")}
-            </Button>
-            <Button type="button" variant="secondary" onClick={() => router.push(`/${locale}/teacher`)}>
-              {tSections("finishDayButton")}
+            <Button type="button" variant="outline" disabled={publishing || aiRewriting} onClick={() => void handlePublish()}>
+              {publishing ? "…" : isCollectivePublished ? "Modifier le message envoyé" : tSections("sendAllButton")}
             </Button>
           </div>
         </CardContent>

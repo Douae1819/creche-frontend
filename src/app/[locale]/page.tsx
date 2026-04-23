@@ -4,7 +4,6 @@ import { use, useState, FormEvent } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
-import Cookies from "js-cookie"
 import { AxiosError } from "axios"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -14,13 +13,23 @@ import { Locale } from "@/lib/i18n/config"
 import { Mail, Lock, LogIn } from "lucide-react"
 import { apiClient } from "@/lib/api"
 import { useAuthStore } from "@/modules/auth/store"
+import { clearSessionTokens, setSessionTokens } from "@/lib/auth-session"
+
+function clearLocalAuthState() {
+  clearSessionTokens()
+  useAuthStore.setState({
+    user: null,
+    token: null,
+    isLoading: false,
+    error: null,
+  })
+}
 
 export default function Home({ params }: { params: Promise<{ locale: Locale }> }) {
   const resolvedParams = use(params)
   const currentLocale = resolvedParams.locale
   const t = useTranslations("home")
   const router = useRouter()
-  const clearAuthStore = useAuthStore((s) => s.logout)
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -44,10 +53,8 @@ export default function Home({ params }: { params: Promise<{ locale: Locale }> }
         }
         const normalizedRole = String(role || "").toUpperCase()
 
-        clearAuthStore()
-        Cookies.set("token", accessToken, { expires: 7 })
-        Cookies.set("auth_token", accessToken, { expires: 7 })
-        if (refreshToken) Cookies.set("refresh_token", refreshToken, { expires: 7 })
+        clearLocalAuthState()
+        setSessionTokens(accessToken, refreshToken)
 
         if (normalizedRole === "PARENT") {
           router.push(`/${currentLocale}/parent`)
@@ -73,10 +80,8 @@ export default function Home({ params }: { params: Promise<{ locale: Locale }> }
         accessToken: string
         refreshToken?: string
       }
-      clearAuthStore()
-      Cookies.set("token", accessToken, { expires: 7 })
-      Cookies.set("auth_token", accessToken, { expires: 7 })
-      if (refreshToken) Cookies.set("refresh_token", refreshToken, { expires: 7 })
+      clearLocalAuthState()
+      setSessionTokens(accessToken, refreshToken)
 
       router.push(`/${currentLocale}/admin`)
     } catch (error) {

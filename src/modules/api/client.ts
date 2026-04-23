@@ -1,7 +1,7 @@
 import ky, { HTTPError } from 'ky';
-import Cookies from 'js-cookie';
 import { useAuthStore } from '@/modules/auth/store';
 import { apiClient } from '@/lib/api';
+import { getSessionSnapshot } from '@/lib/auth-session';
 
 /**
  * Instance Ky configurée avec:
@@ -14,10 +14,8 @@ export const api = ky.create({
   hooks: {
     beforeRequest: [
       (request) => {
-        const token =
-          Cookies.get('auth_token') ||
-          Cookies.get('token') ||
-          useAuthStore.getState().token;
+        const snap = getSessionSnapshot();
+        const token = snap.authToken || snap.token || useAuthStore.getState().token;
         if (token) {
           request.headers.set('Authorization', `Bearer ${token}`);
         }
@@ -31,16 +29,17 @@ export const api = ky.create({
             const refreshed = await apiClient.refreshSession();
             if (refreshed) {
               opts._kyRefresh = true;
-              const token =
-                Cookies.get('auth_token') ||
-                Cookies.get('token') ||
-                useAuthStore.getState().token;
+              const snap = getSessionSnapshot();
+              const token = snap.authToken || snap.token || useAuthStore.getState().token;
               if (token) {
                 request.headers.set('Authorization', `Bearer ${token}`);
               }
               return ky(request);
             }
           }
+          console.error('[Auth/Session] ky_401_logout', {
+            hasToken: getSessionSnapshot().hasAnyToken,
+          });
           useAuthStore.getState().logout();
           if (typeof window !== 'undefined') {
             const pathname = window.location.pathname || '';

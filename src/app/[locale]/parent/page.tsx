@@ -134,7 +134,7 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
   const [passwords, setPasswords] = useState({ current: "", new: "", confirm: "" })
   const [todayMenu, setTodayMenu] = useState<{ date: string; entree?: string | null; plat?: string | null; dessert?: string | null } | null>(null)
   const [weekMenus, setWeekMenus] = useState<Record<string, { date: string; entree?: string | null; plat?: string | null; dessert?: string | null }>>({})
-  const [upcomingEvents, setUpcomingEvents] = useState<{ id: string; date: string; title: string; time?: string | null; description?: string | null }[]>([])
+  const [upcomingEvents, setUpcomingEvents] = useState<{ id: string; date: string; title: string; time?: string | null; description?: string | null; cost?: number | null; currency?: string | null }[]>([])
   const [authorizedPersons, setAuthorizedPersons] = useState<{ id: string; name: string; role?: string | null; phone?: string | null }[]>([])
   const [profileLoading, setProfileLoading] = useState(true)
   const [profileError, setProfileError] = useState<string | null>(null)
@@ -302,7 +302,27 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
                   const end   = ev.endAt   ? new Date(ev.endAt)   : null
                   let timeLabel: string | null = null
                   if (start) { const st = start.toLocaleTimeString(dateLocale, { hour: "2-digit", minute: "2-digit" }); timeLabel = end ? `${st} – ${end.toLocaleTimeString(dateLocale, { hour: "2-digit", minute: "2-digit" })}` : st }
-                  return { id: ev.id ?? String(Math.random()), date: start ? start.toLocaleDateString(dateLocale, { day: "2-digit", month: "short" }).toUpperCase() : "", title: ev.titre ?? ev.title ?? "", time: timeLabel, description: ev.description ?? null }
+                  const costVal =
+                    typeof (ev as { cost?: unknown }).cost === "number"
+                      ? (ev as { cost?: number }).cost
+                      : typeof (ev as { cout?: unknown }).cout === "number"
+                        ? (ev as { cout?: number }).cout
+                        : null
+                  const currencyVal =
+                    typeof (ev as { currency?: unknown }).currency === "string"
+                      ? (ev as { currency?: string }).currency
+                      : typeof (ev as { devise?: unknown }).devise === "string"
+                        ? (ev as { devise?: string }).devise
+                        : null
+                  return {
+                    id: ev.id ?? String(Math.random()),
+                    date: start ? start.toLocaleDateString(dateLocale, { day: "2-digit", month: "short" }).toUpperCase() : "",
+                    title: ev.titre ?? ev.title ?? "",
+                    time: timeLabel,
+                    description: ev.description ?? null,
+                    cost: costVal,
+                    currency: currencyVal,
+                  }
                 })
             )
           } catch {}
@@ -1529,7 +1549,18 @@ export default function ParentDashboard({ params }: { params: Promise<{ locale: 
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-gray-900 text-sm">{ev.title}</p>
                 {ev.time && <p className="text-xs text-gray-500 mt-0.5">🕐 {ev.time}</p>}
-                {ev.description && <p className="text-xs text-gray-600 mt-1 leading-relaxed">{ev.description}</p>}
+                <div className="mt-1.5 space-y-1.5">
+                  <div className="rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Description</p>
+                    <p className="text-xs text-gray-700 mt-0.5 leading-relaxed">{ev.description?.trim() || "Aucune description"}</p>
+                  </div>
+                  <div className="rounded-md border border-sky-200 bg-sky-50 px-2 py-1.5">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-sky-700">Coût</p>
+                    <p className="text-xs font-semibold text-sky-800 mt-0.5">
+                      {typeof ev.cost === "number" ? `${ev.cost} ${ev.currency || "MAD"}` : "Non renseigné"}
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           ))}

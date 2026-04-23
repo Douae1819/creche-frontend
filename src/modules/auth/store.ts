@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import Cookies from 'js-cookie';
-import { apiClient } from '@/lib/api';
+import { clearSessionTokens, setSessionTokens, getSessionSnapshot } from '@/lib/auth-session';
 
 export interface User {
   id: string;
@@ -39,9 +38,9 @@ export const useAuthStore = create<AuthState>()(
       setToken: (token) => {
         set({ token });
         if (token) {
-          Cookies.set('auth_token', token, { expires: 7 });
+          setSessionTokens(token, getSessionSnapshot().refreshToken ?? undefined);
         } else {
-          Cookies.remove('auth_token');
+          clearSessionTokens();
         }
       },
       setLoading: (loading) => set({ isLoading: loading }),
@@ -69,7 +68,7 @@ export const useAuthStore = create<AuthState>()(
             token: data.token,
             isLoading: false,
           });
-          Cookies.set('auth_token', data.token, { expires: 7 });
+          setSessionTokens(data.token);
         } catch (error) {
           const message =
             error instanceof Error ? error.message : 'Erreur de connexion';
@@ -80,11 +79,11 @@ export const useAuthStore = create<AuthState>()(
 
       logout: () => {
         set({ user: null, token: null });
-        void apiClient.logout();
+        clearSessionTokens();
       },
 
       initializeAuth: () => {
-        const token = Cookies.get('auth_token');
+        const token = getSessionSnapshot().authToken;
         if (token) {
           set({ token });
         }

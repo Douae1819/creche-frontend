@@ -21,6 +21,7 @@ import Link from "next/link"
 import { useTranslations } from "next-intl"
 import { apiClient } from "@/lib/api"
 import { formatLocalDateKey } from "@/lib/date-local"
+import { getSessionSnapshot } from "@/lib/auth-session"
 import { CheckCircle, XCircle, LayoutGrid } from "lucide-react"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -183,6 +184,14 @@ export default function TeacherDashboard() {
         }
       } catch (e: any) {
         console.error("[Teacher] loadData error", e)
+        console.error("[Teacher] impossible_to_load_data_context", {
+          locale,
+          today,
+          hasClass: Boolean(teacherClass?.id),
+          auth: getSessionSnapshot(),
+          status: e?.response?.status ?? null,
+          endpoint: e?.config?.url ?? null,
+        })
         if (!cancelled) {
           if (e?.response?.status === 401) {
             setLoadError("Session expirée. Merci de vous reconnecter.")

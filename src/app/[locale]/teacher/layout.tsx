@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button"
 import { usePathname, useRouter } from "next/navigation"
 import { useTranslations } from "next-intl"
 import { TeacherAccountMenu } from "@/components/layout/teacher-account-menu"
+import { apiClient } from "@/lib/api"
+import { clearSessionTokens } from "@/lib/auth-session"
 
 export default function TeacherLayout({
   children,
@@ -30,14 +32,13 @@ export default function TeacherLayout({
     router.push(newPath)
   }
 
-  const handleLogout = () => {
-    if (typeof document !== "undefined") {
-      document.cookie = "token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
-      document.cookie = "auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
-    }
+  const handleLogout = async () => {
+    await apiClient.logout()
+    clearSessionTokens()
     try {
       if (typeof localStorage !== "undefined") {
         localStorage.removeItem("token")
+        localStorage.removeItem("auth_token")
       }
     } catch {
       // ignore
@@ -73,7 +74,7 @@ export default function TeacherLayout({
             >
               {currentLabel} • {nextLabel}
             </Button>
-            <TeacherAccountMenu onLogout={handleLogout} />
+            <TeacherAccountMenu onLogout={() => void handleLogout()} />
           </div>
         </div>
       </header>

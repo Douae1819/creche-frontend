@@ -7,6 +7,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/providers/i18n-provider";
 import { LanguageSwitcher } from "@/components/ui/language-switcher";
+import { apiClient } from "@/lib/api";
+import { clearSessionTokens } from "@/lib/auth-session";
 import {
   LayoutDashboard,
   Users,
@@ -107,9 +109,9 @@ export function Sidebar() {
     );
   };
 
-  const handleLogout = () => {
-    document.cookie = "token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-    document.cookie = "auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+  const handleLogout = async () => {
+    await apiClient.logout();
+    clearSessionTokens();
     try {
       localStorage.removeItem("token");
       localStorage.removeItem("auth_token");
@@ -396,7 +398,7 @@ export function Sidebar() {
             <div className="flex gap-3 pt-1">
               <button
                 type="button"
-                onClick={handleLogout}
+                onClick={() => void handleLogout()}
                 className="flex-1 rounded-lg bg-destructive px-4 py-2 text-sm font-semibold text-white hover:bg-destructive/90 transition-colors"
               >
                 Se déconnecter

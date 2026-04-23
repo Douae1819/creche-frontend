@@ -1,6 +1,7 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import Cookies from 'js-cookie';
 import { defaultLocale, locales, type Locale } from '@/lib/i18n/config';
+import { clearSessionTokens, getSessionSnapshot, setSessionTokens } from '@/lib/auth-session';
 
 /** Base de l’API Nest (`globalPrefix: api`). Normalise `/api` et corrige un double `/api/api` fréquent en prod. */
 function resolveApiBaseUrl(): string {
@@ -40,7 +41,8 @@ class ApiClient {
     });
 
     this.client.interceptors.request.use((config) => {
-      const token = Cookies.get('token') || Cookies.get('auth_token');
+      const snap = getSessionSnapshot();
+      const token = snap.token || snap.authToken;
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -96,9 +98,18 @@ class ApiClient {
   }
 
   private clearAuthCookies() {
-    Cookies.remove('token');
-    Cookies.remove('auth_token');
-    Cookies.remove('refresh_token');
+    clearSessionTokens();
+  }
+
+  private logAuthState(context: string, extra?: Record<string, unknown>) {
+    const snap = getSessionSnapshot();
+    console.error('[Auth/Session]', {
+      context,
+      ...extra,
+      hasAnyToken: snap.hasAnyToken,
+      accessTokensInSync: snap.accessTokensInSync,
+      hasRefreshToken: Boolean(snap.refreshToken),
+    });
   }
 
   /** Une seule requête refresh si plusieurs 401 simultanés */
@@ -112,17 +123,23 @@ class ApiClient {
     if (!this.refreshAccessPromise) {
       this.refreshAccessPromise = (async () => {
         try {
-          const refresh = Cookies.get('refresh_token');
-          if (!refresh) return null;
+          const refresh = getSessionSnapshot().refreshToken;
+          if (!refresh) {
+            this.logAuthState('refresh_missing_token');
+            return null;
+          }
           const { data } = await this.refreshClient.post<{
             accessToken: string;
           }>('/auth/refresh', { refreshToken: refresh });
           const at = data?.accessToken;
           if (!at) return null;
-          Cookies.set('token', at, { expires: 7 });
-          Cookies.set('auth_token', at, { expires: 7 });
+          setSessionTokens(at, refresh);
+          this.logAuthState('refresh_success');
           return at;
-        } catch {
+        } catch (error) {
+          this.logAuthState('refresh_failed', {
+            error: error instanceof Error ? error.message : String(error),
+          });
           return null;
         }
       })().finally(() => {
@@ -133,8 +150,9 @@ class ApiClient {
   }
 
   async logout() {
-    const token = Cookies.get('token') || Cookies.get('auth_token');
-    const refresh = Cookies.get('refresh_token');
+    const snap = getSessionSnapshot();
+    const token = snap.token || snap.authToken;
+    const refresh = snap.refreshToken;
     try {
       if (token) {
         await this.client.post(
@@ -145,6 +163,7 @@ class ApiClient {
     } catch {
       /* ignore */
     }
+    this.logAuthState('logout_local_clear');
     this.clearAuthCookies();
   }
 
@@ -178,6 +197,8 @@ class ApiClient {
     startAt: string;
     endAt?: string | null;
     classeId?: string | null;
+    cost?: number | null;
+    currency?: string | null;
     status?: string;
   }) {
     return this.client.post('/admin/events', data);
@@ -191,6 +212,8 @@ class ApiClient {
       startAt?: string;
       endAt?: string | null;
       classeId?: string | null;
+      cost?: number | null;
+      currency?: string | null;
       status?: string;
     },
   ) {
