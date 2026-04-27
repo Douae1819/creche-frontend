@@ -2,26 +2,17 @@
 
 import { use, useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
-import Cookies from "js-cookie";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { apiClient } from "@/lib/api";
+import { readJwtRole } from "@/lib/jwt-client";
 import { SidebarNew } from "@/components/layout/sidebar-new";
 import { Locale } from "@/lib/i18n/config";
 import { withLocalePath } from "@/lib/i18n/locale-path";
 import { useTranslations } from "next-intl";
 
-function readJwtRole(): string {
-  try {
-    const token = Cookies.get("token") || Cookies.get("auth_token");
-    if (!token) return "";
-    const base64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
-    const pad = base64.length % 4 ? "=".repeat(4 - (base64.length % 4)) : "";
-    return String(JSON.parse(atob(base64 + pad)).role ?? "");
-  } catch { return ""; }
-}
 const noSub = () => () => {};
 
 type UserItem = {
