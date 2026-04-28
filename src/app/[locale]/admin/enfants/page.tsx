@@ -241,73 +241,71 @@ export default function EnfantsPage({ params }: { params: Promise<{ locale: Loca
     }
   };
 
-  const handleChangeStatus = async (id: string, statut: string) => {
-  try {
-    // Vérifier si une présence existe déjà pour aujourd'hui
-    const enfant = children.find(c => c.id === id);
-    
-    if (!enfant) {
-      console.error('Enfant non trouvé');
-      return;
-    }
-    
-    const hasTodayPresence = enfant?.presences?.some(p => p.date === today);
-    
-    if (hasTodayPresence) {
-      // Mettre à jour la présence existante
-      const todayPresence = enfant.presences?.find(p => p.date === today);
-      if (todayPresence) {
-        // Ici, vous devriez appeler un endpoint pour mettre à jour la présence
-        // Pour l'instant, nous utilisons l'endpoint existant qui crée/écrase
-        await apiClient.updateChildStatus(id, statut);
-      }
-    } else {
-      // Créer une nouvelle présence
+  const handleChangeStatus = async (id: string, rawStatut: string) => {
+    try {
+      const allowed = new Set(["Present", "Absent", "Justifie"]);
+      const statut = allowed.has(rawStatut)
+        ? (rawStatut as "Present" | "Absent" | "Justifie")
+        : null;
+
       await apiClient.updateChildStatus(id, statut);
-    }
-    
-    // Mettre à jour l'état local
-    setChildren((prev) =>
-      prev.map((c) => {
-        if (c.id !== id) return c;
-        
-        let todayStatusLabel = "Non défini";
-        if (statut === "Present") todayStatusLabel = "Présent";
-        else if (statut === "Absent") todayStatusLabel = "Absent";
-        else if (statut === "Justifie") todayStatusLabel = "Justifié";
-        
-        // Mettre à jour ou ajouter la présence pour aujourd'hui
-        const updatedPresences = [...(c.presences || [])];
-        const todayIndex = updatedPresences.findIndex(p => p.date === today);
-        
-        if (todayIndex !== -1) {
-          // Mettre à jour la présence existante
-          updatedPresences[todayIndex] = {
-            ...updatedPresences[todayIndex],
-            statut: statut
+
+      setChildren((prev) =>
+        prev.map((c) => {
+          if (c.id !== id) return c;
+
+          const updatedPresences = [...(c.presences || [])];
+          const todayIndex = updatedPresences.findIndex((p) => p.date === today);
+
+          if (!statut) {
+            if (todayIndex !== -1) {
+              updatedPresences.splice(todayIndex, 1);
+            }
+            return {
+              ...c,
+              todayStatusCode: undefined,
+              todayStatus: "Non défini",
+              presences: updatedPresences,
+            };
+          }
+
+          if (todayIndex !== -1) {
+            updatedPresences[todayIndex] = {
+              ...updatedPresences[todayIndex],
+              statut,
+            };
+          } else {
+            updatedPresences.push({
+              id: `temp-${Date.now()}`,
+              date: today,
+              statut,
+            });
+          }
+
+          const todayStatusLabel =
+            statut === "Present"
+              ? "Présent"
+              : statut === "Absent"
+                ? "Absent"
+                : "Justifié";
+
+          return {
+            ...c,
+            todayStatusCode: statut,
+            todayStatus: todayStatusLabel,
+            presences: updatedPresences,
           };
-        } else {
-          // Ajouter une nouvelle présence
-          updatedPresences.push({
-            id: `temp-${Date.now()}`, // ID temporaire
-            date: today,
-            statut: statut
-          });
-        }
-        
-        return { 
-          ...c, 
-          todayStatusCode: statut, 
-          todayStatus: todayStatusLabel,
-          presences: updatedPresences
-        };
-      }),
-    );
-  } catch (err) {
-    console.error("[Admin/Enfants] Error updating status", err);
-    alert("Erreur lors de la mise à jour du statut.");
-  }
-};
+        }),
+      );
+    } catch (err: any) {
+      const detail =
+        err?.response?.data?.message ||
+        err?.message ||
+        "Erreur lors de la mise à jour du statut.";
+      console.error("[Admin/Enfants] Error updating status", err);
+      alert(String(detail));
+    }
+  };
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));

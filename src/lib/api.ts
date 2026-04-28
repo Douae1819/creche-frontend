@@ -626,7 +626,7 @@ class ApiClient {
     return this.client.delete(`/admin/enfants/${id}`);
   }
 
-  updateChildStatus(id: string, statut: string) {
+  updateChildStatus(id: string, statut?: 'Present' | 'Absent' | 'Justifie' | null) {
     return this.client.patch(`/admin/enfants/${id}/status`, { statut });
   }
 
